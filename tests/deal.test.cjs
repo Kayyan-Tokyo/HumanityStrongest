@@ -38,7 +38,7 @@ for (const tag of html.matchAll(/<([a-z0-9]+)\b[^>]*\bid="([^"]+)"[^>]*>/g)) {
 const main = new Element('main');
 const context = vm.createContext({window: {scrollTo() {}}, Math: Object.create(Math), document: {
   getElementById: id => { assert.ok(ids[id], `HTMLに ${id} が存在する`); return ids[id]; },
-  createElement: tag => new Element(tag), querySelector: () => main
+  createElement: tag => new Element(tag), querySelector: () => main, body: new Element('body')
 }});
 for (const file of ['js/characters.js', 'js/match.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
 const characters = context.window.CHARACTERS;

@@ -1,0 +1,99 @@
+// 開発時のみ使用するPlaywrightによる表示回帰テスト。ゲーム本体に依存は追加しない。
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { chromium } = require('playwright');
+const root = path.resolve(__dirname, '..');
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const scriptTags = [...html.matchAll(/<script src="([^"]+)" defer><\/script>/g)];
+assert.equal(scriptTags.length, 3);
+// 過去の無版番号URLとは別のキャッシュキーで全スクリプトを読み込む。
+const versions = scriptTags.map(([, src]) => new URL(src, 'https://test.invalid/').searchParams.get('v'));
+assert.ok(versions.every(Boolean));
+assert.equal(new Set(versions).size, 1);
+// ネットワークもサーバーも使わず、実際のファイルを記載順にブラウザへ読み込む。
+const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, src) => {
+  const file = src.split('?')[0];
+  return '<script>' + fs.readFileSync(path.join(root, file), 'utf8') + '</script>';
+});
+
+(async () => {
+  const browser = await chromium.launch({executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true,
+    args: ['--no-sandbox', '--disable-crashpad-for-testing']});
+  try {
+    for (const width of [320, 375, 390, 430, 768, 1280]) {
+      const context = await browser.newContext({viewport: {width, height: 812}, isMobile: width < 768, hasTouch: width < 768});
+      const page = await context.newPage();
+      page.setDefaultTimeout(5000);
+      const errors = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await page.setContent(withScripts);
+      await page.getByRole('button', {name: 'ゲーム開始', exact: true}).click();
+      const measure = await page.evaluate(() => {
+        const backs = [...document.querySelectorAll('#cpu-hand .card-back')].map(el => {
+          const r = el.getBoundingClientRect();
+          return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};
+        });
+        const player = [...document.querySelectorAll('#hand .card')].map(el => {
+          const r = el.getBoundingClientRect(); return {x:r.x,y:r.y};
+        });
+        return {backs,player,overflow:document.documentElement.scrollWidth > innerWidth,
+          statsVisible:/STR|SPD|END|STK|GRP|SUB/.test(document.querySelector('#hand').innerText),
+          profileCount:document.querySelectorAll('#hand .card-profile').length,
+          columns:getComputedStyle(document.querySelector('#hand')).gridTemplateColumns.split(' ').length,
+          statsRetained:window.CHARACTERS.every(c => Object.keys(c.stats).length === 6)};
+      });
+      assert.equal(measure.backs.length, 4);
+      assert.ok(measure.backs.every(r => r.width > 0 && r.height >= 96 && r.x >= 0 && r.right <= width && r.y >= 0 && r.bottom <= 812));
+      assert.ok(measure.backs.every(r => Math.abs(r.y - measure.backs[0].y) < 1));
+      assert.equal(measure.overflow, false);
+      assert.equal(measure.statsVisible, false);
+      assert.equal(measure.profileCount, 4);
+      assert.equal(measure.columns, 2);
+      assert.ok(Math.abs(measure.player[0].y - measure.player[1].y) < 1);
+      assert.ok(measure.player[2].y > measure.player[0].y);
+      assert.equal(measure.statsRetained, true);
+      const handIds = await page.locator('#hand .card').evaluateAll(cards => cards.map(c => c.dataset.characterId));
+      await page.locator('#hand .card').first().click();
+      await page.getByRole('button', {name:'このキャラで戦う',exact:true}).click();
+      assert.equal(await page.locator('#cpu-fighter .card-back').count(), 1);
+      await page.getByRole('button', {name:'バトル開始',exact:true}).click();
+      const cpuName = await page.locator('#cpu-fighter .card-name').textContent();
+      assert.ok(cpuName);
+      assert.doesNotMatch(await page.locator('#preparation-screen').innerText(), /STR|SPD|END|STK|GRP|SUB/);
+      await page.getByRole('button', {name:'手札に戻る',exact:true}).click();
+      assert.deepEqual(await page.locator('#hand .card').evaluateAll(cards => cards.map(c => c.dataset.characterId)), handIds);
+      assert.equal(await page.locator('#hand .card[aria-pressed="true"]').count(), 1);
+      await page.getByRole('button', {name:'このキャラで戦う',exact:true}).click();
+      await page.getByRole('button', {name:'バトル開始',exact:true}).click();
+      assert.equal(await page.locator('#cpu-fighter .card-name').textContent(), cpuName);
+      await page.getByRole('button', {name:'手札に戻る',exact:true}).click();
+      // 旧描画が能力値DOMを追加しても、見た目とアクセシビリティから除かれる。
+      await page.evaluate(() => {
+        const legacy = document.createElement('span');
+        legacy.className = 'card-stats'; legacy.textContent = 'STR 99 SPD 99 END 99 STK 99 GRP 99 SUB 99';
+        document.querySelector('#hand .card').append(legacy);
+      });
+      assert.equal(await page.locator('#hand .card-stats').isVisible(), false);
+      assert.doesNotMatch(await page.locator('#hand').innerText(), /STR|SPD|END|STK|GRP|SUB/);
+      assert.doesNotMatch(await page.locator('#hand').ariaSnapshot(), /STR|SPD|END|STK|GRP|SUB/);
+      await page.getByRole('button', {name:'配り直す',exact:true}).click();
+      assert.equal(await page.locator('#cpu-hand .card-back:visible').count(), 4);
+      assert.equal(await page.locator('#hand .card[aria-pressed="true"]').count(), 0);
+      if (process.env.SCREENSHOT_DIR && width === 375) {
+        fs.mkdirSync(process.env.SCREENSHOT_DIR, {recursive:true});
+        await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-hand.png'),fullPage:true});
+      }
+      assert.deepEqual(errors, []);
+      console.log(`PASS ${width}px: CPU横4枚が画面内、手札2×2、能力値非表示、対戦準備/公開/戻る/再配布`);
+      await context.close();
+    }
+    // JSが一時的に読み込めない場合でもCPUカード4枚の領域はHTMLに存在する。
+    const page = await browser.newPage({viewport:{width:320,height:812}});
+    await page.setContent(html.replace(/<script[^>]*><\/script>/g, ''));
+    await page.evaluate(() => {document.querySelector('#title-screen').hidden = true; document.querySelector('#hand-screen').hidden = false;});
+    assert.equal(await page.locator('#cpu-hand .card-back:visible').count(), 4);
+    console.log('PASS: JavaScript未読込時にもCPU裏面4枚を表示');
+    await page.close();
+  } finally { await browser.close(); }
+})().catch(error => {console.error(error);process.exitCode=1;});
