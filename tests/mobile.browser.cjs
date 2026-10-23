@@ -28,6 +28,11 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.setContent(withScripts);
+      // 表示検証では長い名前の4人を確実に配る。抽選のランダム性はdeal.test.cjsで検証する。
+      await page.evaluate(() => {
+        const ranked = [...window.CHARACTERS].sort((a,b) => b.name.length - a.name.length);
+        window.HumanityMatch.deal = () => ({playerHand:ranked.slice(0,4),cpuHand:ranked.slice(4,8),cpuCard:ranked[4]});
+      });
       await page.getByRole('button', {name: 'ゲーム開始', exact: true}).click();
       const measure = await page.evaluate(() => {
         const backs = [...document.querySelectorAll('#cpu-hand .card-back')].map(el => {
@@ -35,10 +40,12 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
           return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};
         });
         const player = [...document.querySelectorAll('#hand .card')].map(el => {
-          const r = el.getBoundingClientRect(); return {x:r.x,y:r.y};
+          const r = el.getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,width:r.width,height:r.height};
         });
         return {backs,player,overflow:document.documentElement.scrollWidth > innerWidth,
           statsVisible:/STR|SPD|END|STK|GRP|SUB/.test(document.querySelector('#hand').innerText),
+          contentFits:[...document.querySelectorAll('#hand .card-name, #hand .card-profile, #hand .selection-label')].every(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1),
+          handFits:document.querySelector('#hand').scrollWidth <= document.querySelector('#hand').clientWidth,
           profileCount:document.querySelectorAll('#hand .card-profile').length,
           columns:getComputedStyle(document.querySelector('#hand')).gridTemplateColumns.split(' ').length,
           statsRetained:window.CHARACTERS.every(c => Object.keys(c.stats).length === 6)};
@@ -49,9 +56,17 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       assert.equal(measure.overflow, false);
       assert.equal(measure.statsVisible, false);
       assert.equal(measure.profileCount, 4);
-      assert.equal(measure.columns, 2);
-      assert.ok(Math.abs(measure.player[0].y - measure.player[1].y) < 1);
-      assert.ok(measure.player[2].y > measure.player[0].y);
+      assert.equal(measure.columns, 4);
+      assert.equal(measure.handFits, true);
+      assert.equal(measure.contentFits, true);
+      assert.ok(measure.player.every(r => Math.abs(r.y - measure.player[0].y) < 1));
+      assert.ok(measure.player.every(r => r.width >= 44 && r.height >= 44 && r.x >= 0 && r.right <= width));
+      const cardsMatchData = await page.locator('#hand .card').evaluateAll(cards => cards.every(card => {
+        const character = window.CHARACTERS.find(c => c.id === card.dataset.characterId);
+        return card.querySelector('.card-name').textContent === character.name &&
+          card.querySelector('.card-profile').textContent === `${character.age}歳 / ${character.height}cm / ${character.weight}kg`;
+      }));
+      assert.equal(cardsMatchData, true);
       assert.equal(measure.statsRetained, true);
       const handIds = await page.locator('#hand .card').evaluateAll(cards => cards.map(c => c.dataset.characterId));
       const sides = await page.evaluate(() => {
@@ -111,7 +126,7 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-hand.png'),fullPage:true});
       }
       assert.deepEqual(errors, []);
-      console.log(`PASS ${width}px: CPU横4枚が画面内、手札2×2、PLAYER左/VS/CPU右、能力値非表示、対戦準備/公開/戻る/再配布`);
+      console.log(`PASS ${width}px: CPU横4枚が画面内、プレイヤー手札横4枚・長い名前も収まる、PLAYER左/VS/CPU右、能力値非表示、対戦準備/公開/戻る/再配布`);
       await context.close();
     }
     // JSが一時的に読み込めない場合でもCPUカード4枚の領域はHTMLに存在する。
