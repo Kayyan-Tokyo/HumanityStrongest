@@ -47,7 +47,9 @@ const original = JSON.stringify(characters);
 assert.equal(characters.length, 30);
 assert.equal(new Set(characters.map(c => c.id)).size, 30);
 for (const c of characters) {
-  assert.match(c.name, /^仮キャラクター/);
+  assert.equal(typeof c.name, 'string');
+  assert.ok(c.name.trim().length > 0);
+  assert.doesNotMatch(c.name, /^仮キャラクター/);
   for (const key of ['age', 'height', 'weight']) assert.ok(Number.isFinite(c[key]));
   assert.deepEqual(Object.keys(c.stats), ['STR', 'SPD', 'END', 'STK', 'GRP', 'SUB']);
 }
@@ -62,11 +64,19 @@ function assertMatch(match) {
   }
 }
 const lineups = new Set();
+const seenPlayer = new Set();
+const seenCpu = new Set();
+let seed = 20261024;
+const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
 for (let i = 0; i < 1000; i++) {
-  const match = deal(characters); assertMatch(match);
+  const match = deal(characters, random); assertMatch(match);
+  for (const c of match.playerHand) seenPlayer.add(c.id);
+  for (const c of match.cpuHand) seenCpu.add(c.id);
   lineups.add(match.playerHand.map(c => c.id).join(','));
 }
 assert.ok(lineups.size > 1, '配布結果が変化する');
+assert.equal(seenPlayer.size, 30, '全30人がプレイヤーに抽選される');
+assert.equal(seenCpu.size, 30, '全30人がCPUに抽選される');
 for (const value of [0, 0.9999999999999999]) assertMatch(deal(characters, () => value));
 assert.throws(() => deal(characters.slice(0, 7)));
 assert.throws(() => deal([...characters.slice(0, 8), characters[0]]));
