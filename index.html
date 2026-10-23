@@ -62,6 +62,46 @@
     button:active { background: #efa640; }
     button:focus-visible { outline: 3px solid #ffffff; outline-offset: 6px; }
 
+    [hidden] { display: none !important; }
+    main.playing { max-width: 1120px; }
+    h2 { margin: 0 0 16px; font-size: clamp(1.5rem, 5vw, 2rem); }
+    .hand-note { color: #d8d4e4; line-height: 1.8; }
+    .hand {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 0;
+      margin: 24px 0;
+      list-style: none;
+    }
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      padding: 16px 12px;
+      border: 2px solid #625575;
+      background: #211e30;
+      color: #f8fafc;
+      font-size: 0.9rem;
+      font-weight: 400;
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+    .card:hover { background: #30283f; }
+    .card[aria-pressed="true"] { border-color: #ffbf60; background: #392d30; }
+    .card-name { font-size: clamp(1rem, 3vw, 1.25rem); font-weight: 700; }
+    .card-profile { color: #d8d4e4; font-size: 0.85rem; line-height: 1.8; }
+    .card-stats { display: grid; gap: 8px; width: 100%; }
+    .card-stats > span { display: flex; justify-content: space-between; gap: 8px; }
+    .selection-label { margin-top: auto; color: #ffcf89; font-size: 0.8rem; }
+    @media (min-width: 900px) {
+      .hand { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+      .card { padding: 24px 20px; }
+    }
+
     .status {
       min-height: 3em;
       margin: 24px 0 0;
@@ -73,18 +113,20 @@
 </head>
 <body>
   <main>
-    <h1>人類最強決定戦</h1>
-    <p class="subtitle">30人の戦士から最強を決めろ！</p>
-    <button id="start-button" type="button">ゲーム開始</button>
-    <p id="status" class="status" role="status"></p>
+    <section id="title-screen" aria-labelledby="title">
+      <h1 id="title">人類最強決定戦</h1>
+      <p class="subtitle">30人の戦士から最強を決めろ！</p>
+      <button id="start-button" type="button">ゲーム開始</button>
+    </section>
+    <section id="hand-screen" aria-labelledby="hand-title" hidden>
+      <h2 id="hand-title" tabindex="-1">あなたの手札</h2>
+      <p class="hand-note">名前・プロフィール・能力値はすべて仮データです。<br>カードをタップして選択できます。対戦機能は準備中です。</p>
+      <ul id="hand" class="hand" aria-label="配られた4人の戦士"></ul>
+      <button id="redeal-button" type="button">配り直す</button>
+      <p id="status" class="status" role="status"></p>
+    </section>
   </main>
-  <script>
-    const startButton = document.getElementById('start-button');
-    const statusMessage = document.getElementById('status');
-
-    startButton.addEventListener('click', () => {
-      statusMessage.textContent = '開始ボタンの動作を確認しました。ゲーム本編は準備中です。';
-    });
-  </script>
+  <script src="./js/characters.js" defer></script>
+  <script src="./js/game.js" defer></script>
 </body>
 </html>
