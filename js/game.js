@@ -76,7 +76,7 @@
     fightButton.disabled = !selectedId;
     renderPlayerFighter();
     get('status').textContent = selectedId
-      ? `${character.name}を選択しました。「このキャラで戦う」で対戦準備へ進めます。`
+      ? `${character.name}を選択しました。「このキャラで戦う」でCPUのカードを公開します。`
       : '選択を解除しました。カードを1枚選んでください。';
   }
 
@@ -112,7 +112,6 @@
     lockHand(false);
     renderPlayerFighter();
     concealCpuFighter();
-    get('battle-button').hidden = true;
     get('return-button').hidden = true;
     get('battle-status').textContent = '';
     get('status').textContent = '両者に4枚ずつ配りました。あなたのカードを1枚選んでください。';
@@ -127,38 +126,43 @@
   get('redeal-button').addEventListener('click', () => {
     if (stage === 'hand') deal();
   });
-  fightButton.addEventListener('click', () => {
+  // 対戦開始の唯一の入口。将来の勝敗判定・バトル演出もここから接続する。
+  function startBattle() {
     if (stage !== 'hand' || !selectedId) return;
-    renderPlayerFighter();
-    concealCpuFighter();
+    const battle = {
+      playerCard: match.playerHand.find(c => c.id === selectedId),
+      cpuCard: match.cpuCard
+    };
+    // 描画や将来の非同期処理より先にロックし、連打・直接イベント送出も拒否する。
+    stage = 'battling';
     lockHand(true);
-    get('battle-button').hidden = false;
-    get('return-button').hidden = true;
-    get('battle-status').textContent = 'CPUのカードはまだ非公開です。「バトル開始」で公開します。';
-    stage = 'preparation';
-    get('preparation-title').focus({ preventScroll: true });
-    get('preparation-screen').scrollIntoView({ block: 'start', behavior: 'instant' });
-  });
-  get('battle-button').addEventListener('click', () => {
-    if (stage !== 'preparation') return;
+    renderPlayerFighter();
+    revealCpuCard(battle.cpuCard);
+    // 将来: battle.playerCard / battle.cpuCard の能力値を使い、ここで勝敗・演出を処理する。
     stage = 'revealed';
+    get('return-button').hidden = false;
+    get('battle-status').textContent = `CPUは${battle.cpuCard.name}を選びました。今回はカードの公開までです。勝敗計算はまだ行いません。`;
+    get('battle-title').focus({ preventScroll: true });
+    get('battle-area').scrollIntoView({ block: 'start', behavior: 'instant' });
+    get('return-button').focus({ preventScroll: true });
+  }
+
+  function revealCpuCard(character) {
     const front = document.createElement('div');
     front.className = 'card fighter-card';
-    profileContent(front, match.cpuCard);
+    profileContent(front, character);
     get('cpu-fighter').replaceChildren(front);
     get('cpu-fighter').classList.add('revealed');
-    get('battle-button').hidden = true;
-    get('return-button').hidden = false;
-    get('battle-status').textContent = `CPUは${match.cpuCard.name}を選びました。今回はカードの公開までです。勝敗計算はまだ行いません。`;
-    get('return-button').focus();
-  });
+  }
+
+  fightButton.addEventListener('click', startBattle);
   get('return-button').addEventListener('click', () => {
     if (stage !== 'revealed') return;
     stage = 'hand';
     concealCpuFighter();
     lockHand(false);
     get('return-button').hidden = true;
-    get('battle-status').textContent = 'カードを選び直すか、同じカードで再び対戦準備へ進めます。';
+    get('battle-status').textContent = 'カードを選び直すか、同じカードで再び対戦できます。';
     const selected = [...handList.querySelectorAll('.card')].find(card => card.dataset.characterId === selectedId);
     selected.focus({ preventScroll: true });
     selected.scrollIntoView({ block: 'center', behavior: 'instant' });

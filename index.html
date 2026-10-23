@@ -217,8 +217,8 @@
         <li><div class="card-back" role="img" aria-label="CPUの裏向きカード3"><span aria-hidden="true">?</span><span>CPU</span></div></li>
         <li><div class="card-back" role="img" aria-label="CPUの裏向きカード4"><span aria-hidden="true">?</span><span>CPU</span></div></li>
       </ul>
-      <section id="preparation-screen" class="battle-area" aria-labelledby="preparation-title">
-        <h2 id="preparation-title" tabindex="-1">バトルエリア</h2>
+      <section id="battle-area" class="battle-area" aria-labelledby="battle-title">
+        <h2 id="battle-title" tabindex="-1">バトルエリア</h2>
         <div class="battle-arena">
           <section class="battle-side battle-side--player" data-attack-direction="right" aria-labelledby="player-label">
             <h3 id="player-label">PLAYER</h3>
@@ -233,7 +233,6 @@
           </section>
         </div>
         <div class="actions">
-          <button id="battle-button" type="button" hidden>バトル開始</button>
           <button id="return-button" type="button" hidden>手札に戻る</button>
         </div>
         <p id="battle-status" class="status" role="status"></p>
@@ -247,8 +246,8 @@
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=compact-copy-1" defer></script>
-  <script src="./js/match.js?v=compact-copy-1" defer></script>
-  <script src="./js/game.js?v=compact-copy-1" defer></script>
+  <script src="./js/characters.js?v=single-start-1" defer></script>
+  <script src="./js/match.js?v=single-start-1" defer></script>
+  <script src="./js/game.js?v=single-start-1" defer></script>
 </body>
 </html>
