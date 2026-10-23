@@ -36,6 +36,9 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       await page.getByRole('button', {name: 'ゲーム開始', exact: true}).click();
       assert.doesNotMatch(await page.locator('#hand-screen').innerText(), /あなたのカードを選ぶと左側に表示されます。|カードを1枚選んでください。能力値は非公開です。|キャラクターデータ v1/);
       assert.equal(await page.getByRole('heading', {name:'あなたの手札',exact:true}).count(), 1);
+      assert.equal(await page.locator('#fight-button').isDisabled(), true);
+      await page.locator('#fight-button').evaluate(button => button.dispatchEvent(new MouseEvent('click',{bubbles:true})));
+      assert.equal(await page.locator('#cpu-fighter .card-back').count(), 1);
       const emptyStatus = await page.locator('#battle-status').boundingBox();
       assert.equal(emptyStatus.height, 0);
       const measure = await page.evaluate(() => {
@@ -83,7 +86,7 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       assert.ok(Math.abs(sides.player.top - sides.cpu.top) < 1);
       assert.ok(sides.topHand.bottom <= sides.arena.top && sides.arena.bottom <= sides.bottomHand.top);
       const compactSpacing = await page.evaluate(() => {
-        const battle = document.querySelector('#preparation-screen').getBoundingClientRect();
+        const battle = document.querySelector('#battle-area').getBoundingClientRect();
         const handHeading = document.querySelector('#hand-screen > h3').getBoundingClientRect();
         const cards = document.querySelector('#hand').getBoundingClientRect();
         return {afterBattle:handHeading.top-battle.bottom,beforeCards:cards.top-handHeading.bottom};
@@ -93,12 +96,21 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       await page.locator('#hand .card').first().click();
       const playerName = await page.locator('#hand .card').first().locator('.card-name').textContent();
       assert.equal(await page.locator('#player-fighter .card-name').textContent(), playerName);
-      await page.getByRole('button', {name:'このキャラで戦う',exact:true}).click();
+      assert.equal(await page.getByRole('button', {name:'バトル開始',exact:true}).count(), 0);
       assert.equal(await page.locator('#cpu-fighter .card-back').count(), 1);
+      const fight = page.getByRole('button', {name:'このキャラで戦う',exact:true});
+      if (width < 768) await fight.tap(); else await fight.click();
+      assert.equal(await fight.isDisabled(), true);
+      const duplicateRejected = await page.evaluate(() => {
+        const front = document.querySelector('#cpu-fighter').firstElementChild;
+        const button = document.querySelector('#fight-button');
+        for(let n=0;n<10;n++) button.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+        return document.querySelector('#cpu-fighter').firstElementChild === front;
+      });
+      assert.equal(duplicateRejected,true);
       assert.equal(await page.locator('#cpu-hand .card-back:visible').count(), 4);
       assert.equal(await page.locator('#hand .card:visible').count(), 4);
       assert.equal(await page.locator('#hand .card:disabled').count(), 4);
-      await page.getByRole('button', {name:'バトル開始',exact:true}).click();
       const cpuName = await page.locator('#cpu-fighter .card-name').textContent();
       assert.ok(cpuName);
       const revealedSides = await page.evaluate(() => {
@@ -112,12 +124,11 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         fs.mkdirSync(process.env.SCREENSHOT_DIR, {recursive:true});
         await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-battle.png'),fullPage:true});
       }
-      assert.doesNotMatch(await page.locator('#preparation-screen').innerText(), /STR|SPD|END|STK|GRP|SUB/);
+      assert.doesNotMatch(await page.locator('#battle-area').innerText(), /STR|SPD|END|STK|GRP|SUB/);
       await page.getByRole('button', {name:'手札に戻る',exact:true}).click();
       assert.deepEqual(await page.locator('#hand .card').evaluateAll(cards => cards.map(c => c.dataset.characterId)), handIds);
       assert.equal(await page.locator('#hand .card[aria-pressed="true"]').count(), 1);
       await page.getByRole('button', {name:'このキャラで戦う',exact:true}).click();
-      await page.getByRole('button', {name:'バトル開始',exact:true}).click();
       assert.equal(await page.locator('#cpu-fighter .card-name').textContent(), cpuName);
       await page.getByRole('button', {name:'手札に戻る',exact:true}).click();
       // 旧描画が能力値DOMを追加しても、見た目とアクセシビリティから除かれる。
@@ -139,7 +150,7 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-hand.png'),fullPage:true});
       }
       assert.deepEqual(errors, []);
-      console.log(`PASS ${width}px: CPU横4枚が画面内、プレイヤー手札横4枚・長い名前も収まる、PLAYER左/VS/CPU右、能力値非表示、対戦準備/公開/戻る/再配布`);
+      console.log(`PASS ${width}px: CPU横4枚が画面内、プレイヤー手札横4枚・長い名前も収まる、PLAYER左/VS/CPU右、能力値非表示、1回タップ公開/多重実行防止/戻る/再配布`);
       await context.close();
     }
     // JSが一時的に読み込めない場合でもCPUカード4枚の領域はHTMLに存在する。
