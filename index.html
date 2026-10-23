@@ -108,19 +108,19 @@
     .card-name { font-size: clamp(1rem, 3vw, 1.25rem); font-weight: 700; }
     .card-profile { color: #d8d4e4; font-size: 0.85rem; line-height: 1.8; }
     /* 古い描画コードが残った場合も、手札・出場カードの能力値を表示しない。 */
-    #hand .card-stats, #player-fighter .card-stats, #cpu-fighter .card-stats {
+    #hand .card-stats, #cpu-hand .card-stats, #player-fighter .card-stats, #cpu-fighter .card-stats {
       display: none !important;
     }
     .selection-label { margin-top: auto; color: #ffcf89; font-size: 0.8rem; }
     /* 手札だけを細い4列に調整し、中央の出場カードの文字サイズは維持する。 */
-    .hand .card { padding: 12px 4px; gap: 10px; border-radius: 8px; }
-    .hand .card-name {
+    .hand .card, .cpu-hand .card { padding: 12px 4px; gap: 10px; border-radius: 8px; }
+    .hand .card-name, .cpu-hand .card-name {
       font-size: clamp(0.6875rem, 2.8vw, 1rem);
       line-height: 1.5;
       white-space: normal;
       overflow-wrap: anywhere;
     }
-    .hand .card-profile { font-size: clamp(0.625rem, 2.4vw, 0.85rem); line-height: 1.65; }
+    .hand .card-profile, .cpu-hand .card-profile { font-size: clamp(0.625rem, 2.4vw, 0.85rem); line-height: 1.65; }
     .hand .selection-label { font-size: clamp(0.625rem, 2.1vw, 0.8rem); line-height: 1.6; }
     .card-back {
       display: flex;
@@ -138,7 +138,6 @@
       font-size: 0.75rem;
     }
     .card-back > span:first-child { font-size: clamp(1.5rem, 5vw, 2rem); font-weight: 700; }
-    .cpu-hand .card-back { height: 100%; min-height: 100px; }
     .vs { margin: 24px 0; color: #ffbf60; font-size: 2rem; font-weight: 800; letter-spacing: 0.1em; }
     .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
     .actions button { width: min(100%, 280px); }
@@ -185,8 +184,7 @@
     @media (min-width: 600px) {
       .card { padding: 24px; }
       .hand, .cpu-hand { gap: 16px; }
-      .hand .card { padding: 16px 10px; gap: 12px; }
-      .cpu-hand .card-back { min-height: 128px; }
+      .hand .card, .cpu-hand .card { padding: 16px 10px; gap: 12px; }
     }
     @media (max-width: 599px) {
       body.in-game { padding: 16px 12px; }
@@ -210,13 +208,7 @@
     </section>
     <section id="hand-screen" aria-labelledby="hand-title" hidden>
       <h2 id="hand-title" tabindex="-1">CPUの手札</h2>
-      <!-- 裏面は静的にも用意し、JavaScriptの更新前でも4枚の領域を確保する。 -->
-      <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの手札4枚・すべて裏向き">
-        <li><div class="card-back" role="img" aria-label="CPUの裏向きカード1"><span aria-hidden="true">?</span><span>CPU</span></div></li>
-        <li><div class="card-back" role="img" aria-label="CPUの裏向きカード2"><span aria-hidden="true">?</span><span>CPU</span></div></li>
-        <li><div class="card-back" role="img" aria-label="CPUの裏向きカード3"><span aria-hidden="true">?</span><span>CPU</span></div></li>
-        <li><div class="card-back" role="img" aria-label="CPUの裏向きカード4"><span aria-hidden="true">?</span><span>CPU</span></div></li>
-      </ul>
+      <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの公開手札4枚"></ul>
       <section id="battle-area" class="battle-area" aria-labelledby="battle-title">
         <h2 id="battle-title" tabindex="-1">バトルエリア</h2>
         <div class="battle-arena" data-attack-axis="y">
@@ -246,8 +238,8 @@
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=single-start-1" defer></script>
-  <script src="./js/match.js?v=single-start-1" defer></script>
-  <script src="./js/game.js?v=single-start-1" defer></script>
+  <script src="./js/characters.js?v=public-cpu-hand-1" defer></script>
+  <script src="./js/match.js?v=public-cpu-hand-1" defer></script>
+  <script src="./js/game.js?v=public-cpu-hand-1" defer></script>
 </body>
 </html>

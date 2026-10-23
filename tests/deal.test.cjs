@@ -103,10 +103,19 @@ ids['fight-button'].listeners.click(); // disabledを迂回しても未選択は
 assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length, 1);
 assert.equal(ids['return-button'].hidden, true);
 assertNoStats(ids.hand);
-for (const c of currentMatch.cpuHand) {
-  assert.ok(!textTree(ids['cpu-hand']).includes(c.name));
-  assert.ok(!textTree(ids['cpu-hand']).includes(c.id));
+const cpuCards = () => ids['cpu-hand'].querySelectorAll('.card');
+assert.equal(cpuCards().length, 4);
+assertNoStats(ids['cpu-hand']);
+for (let i = 0; i < 4; i++) {
+  const c = currentMatch.cpuHand[i];
+  const card = cpuCards()[i];
+  assert.equal(card.querySelector('.card-name').textContent, c.name);
+  assert.equal(card.querySelector('.card-profile').textContent, `${c.age}歳 / ${c.height}cm / ${c.weight}kg`);
+  assert.deepEqual(card.dataset, {});
+  assert.deepEqual(card.attributes, {});
+  assert.deepEqual(card.listeners, {});
 }
+assert.equal(ids['cpu-fighter'].querySelectorAll('.card-name').length, 0);
 for (let i = 0; i < 4; i++) {
   assert.equal(cards()[i].querySelector('.card-name').textContent, currentMatch.playerHand[i].name);
   assert.match(cards()[i].querySelector('.card-profile').textContent, /歳 \/ \d+cm \/ \d+kg/);
