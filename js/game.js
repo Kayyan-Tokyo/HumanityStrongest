@@ -114,7 +114,7 @@
     concealCpuFighter();
     get('battle-button').hidden = true;
     get('return-button').hidden = true;
-    get('battle-status').textContent = 'あなたのカードを選ぶと左側に表示されます。';
+    get('battle-status').textContent = '';
     get('status').textContent = '両者に4枚ずつ配りました。あなたのカードを1枚選んでください。';
   }
 
