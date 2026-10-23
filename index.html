@@ -63,17 +63,20 @@
     button:focus-visible { outline: 3px solid #ffffff; outline-offset: 6px; }
 
     [hidden] { display: none !important; }
-    main.playing { max-width: 1120px; }
+    main.playing { max-width: 760px; padding: 12px 0; }
     h2 { margin: 0 0 16px; font-size: clamp(1.5rem, 5vw, 2rem); }
-    .hand-note { color: #d8d4e4; line-height: 1.8; }
-    .hand {
+    h3 { margin: 20px 0 12px; font-size: 1.1rem; }
+    .hand-note { color: #d8d4e4; line-height: 1.8; font-size: 0.9rem; }
+    .hand, .cpu-hand {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
       padding: 0;
-      margin: 24px 0;
+      margin: 20px 0;
       list-style: none;
     }
+    .hand { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cpu-hand { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .hand > li, .cpu-hand > li { min-width: 0; }
     .card {
       display: flex;
       flex-direction: column;
@@ -81,8 +84,9 @@
       width: 100%;
       height: 100%;
       min-width: 0;
-      padding: 16px 12px;
+      padding: 20px 12px;
       border: 2px solid #625575;
+      border-radius: 12px;
       background: #211e30;
       color: #f8fafc;
       font-size: 0.9rem;
@@ -90,16 +94,49 @@
       text-align: left;
       overflow-wrap: anywhere;
     }
-    .card:hover { background: #30283f; }
+    button.card:hover { background: #30283f; }
     .card[aria-pressed="true"] { border-color: #ffbf60; background: #392d30; }
     .card-name { font-size: clamp(1rem, 3vw, 1.25rem); font-weight: 700; }
     .card-profile { color: #d8d4e4; font-size: 0.85rem; line-height: 1.8; }
-    .card-stats { display: grid; gap: 8px; width: 100%; }
-    .card-stats > span { display: flex; justify-content: space-between; gap: 8px; }
     .selection-label { margin-top: auto; color: #ffcf89; font-size: 0.8rem; }
-    @media (min-width: 900px) {
-      .hand { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
-      .card { padding: 24px 20px; }
+    .card-back {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 96px;
+      padding: 12px 4px;
+      border: 2px solid #625575;
+      border-radius: 12px;
+      color: #d8d4e4;
+      background: repeating-linear-gradient(135deg, #211e30, #211e30 10px, #2d2540 10px, #2d2540 12px);
+      font-size: 0.75rem;
+    }
+    .card-back > span:first-child { font-size: clamp(1.5rem, 5vw, 2rem); font-weight: 700; }
+    .vs { margin: 24px 0; color: #ffbf60; font-size: 2rem; font-weight: 800; letter-spacing: 0.1em; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
+    .actions button { width: min(100%, 280px); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button:disabled:hover { background: #ffbf60; }
+    .secondary { background: transparent; color: #ffcf89; }
+    .secondary:hover { background: #30283f; }
+    .fighter-slot { width: min(100%, 320px); margin: 0 auto; perspective: 800px; }
+    .fighter-slot .card-back, .fighter-card { min-height: 150px; }
+    .fighter-card { justify-content: center; }
+    .revealed > .fighter-card { animation: reveal-card 600ms ease-out; }
+    @keyframes reveal-card {
+      from { transform: rotateY(90deg); opacity: 0.2; }
+      to { transform: rotateY(0deg); opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .revealed > .fighter-card { animation: none; }
+    }
+    @media (min-width: 600px) {
+      .card { padding: 24px; }
+      .cpu-hand { gap: 16px; }
+      .cpu-hand .card-back { min-height: 128px; }
     }
 
     .status {
@@ -119,14 +156,35 @@
       <button id="start-button" type="button">ゲーム開始</button>
     </section>
     <section id="hand-screen" aria-labelledby="hand-title" hidden>
-      <h2 id="hand-title" tabindex="-1">あなたの手札</h2>
-      <p class="hand-note">名前・プロフィール・能力値はすべて仮データです。<br>カードをタップして選択できます。対戦機能は準備中です。</p>
-      <ul id="hand" class="hand" aria-label="配られた4人の戦士"></ul>
-      <button id="redeal-button" type="button">配り直す</button>
+      <h2 id="hand-title" tabindex="-1">CPUの手札</h2>
+      <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの手札4枚・すべて裏向き"></ul>
+      <div class="vs" aria-label="対戦">VS</div>
+      <h3>あなたの手札</h3>
+      <p class="hand-note">カードを1枚選んでください。能力値は非公開です。<br>名前・プロフィール・能力値はすべて仮データです。</p>
+      <ul id="hand" class="hand" aria-label="あなたの手札4枚"></ul>
+      <div class="actions">
+        <button id="fight-button" type="button" disabled>このキャラで戦う</button>
+        <button id="redeal-button" class="secondary" type="button">配り直す</button>
+      </div>
       <p id="status" class="status" role="status"></p>
+    </section>
+    <section id="preparation-screen" aria-labelledby="preparation-title" hidden>
+      <h2 id="preparation-title" tabindex="-1">対戦準備</h2>
+      <p class="hand-note">名前・プロフィール・能力値はすべて仮データです。</p>
+      <h3>CPUの出場カード</h3>
+      <div id="cpu-fighter" class="fighter-slot"></div>
+      <div class="vs" aria-label="対戦">VS</div>
+      <h3>あなたの出場カード</h3>
+      <div id="player-fighter" class="card fighter-card fighter-slot"></div>
+      <div class="actions">
+        <button id="battle-button" type="button">バトル開始</button>
+        <button id="return-button" type="button" hidden>手札に戻る</button>
+      </div>
+      <p id="battle-status" class="status" role="status"></p>
     </section>
   </main>
   <script src="./js/characters.js" defer></script>
+  <script src="./js/match.js" defer></script>
   <script src="./js/game.js" defer></script>
 </body>
 </html>
