@@ -154,25 +154,25 @@
     .battle-area .actions button:not([hidden]) { margin-top: 12px; }
     .battle-arena {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
       gap: 8px;
       align-items: stretch;
     }
-    .battle-side { display: flex; flex-direction: column; min-width: 0; }
-    .battle-side h3 { margin: 0 0 12px; font-size: 0.9rem; letter-spacing: 0.06em; }
-    /* 将来の突進演出は、この左右固定の各side内のカードを中央へ動かす。 */
-    .battle-side--player { --attack-direction: 1; }
-    .battle-side--cpu { --attack-direction: -1; }
+    .battle-side { display: flex; flex-direction: column; min-width: 0; width: min(100%, 280px); }
+    .battle-side h3 { margin: 0 0 6px; font-size: 0.9rem; letter-spacing: 0.06em; }
+    /* 将来の突進演出は、Y軸上でCPUを下、PLAYERを上へ動かし、中央で3回衝突させる。 */
+    .battle-side--player { --attack-direction: -1; }
+    .battle-side--cpu { --attack-direction: 1; }
     .battle-arena > .vs { align-self: center; margin: 0; font-size: clamp(1rem, 4vw, 2rem); }
     .fighter-slot { width: 100%; flex: 1; margin: 0 auto; perspective: 800px; min-width: 0; }
-    .battle-arena .fighter-card, .battle-arena .card-back { min-height: 190px; height: 100%; }
-    .battle-arena .fighter-card { padding: 16px 10px; }
+    .battle-arena .fighter-card, .battle-arena .card-back { min-height: 112px; height: auto; }
+    .battle-arena .fighter-card { padding: 12px 16px; gap: 8px; }
     .empty-fighter { color: #d8d4e4; line-height: 1.8; }
     .battle-area .status { margin-top: 16px; }
     button.card:disabled { opacity: 0.75; cursor: default; }
     button.card:disabled:hover { background: #211e30; }
     button.card[aria-pressed="true"]:disabled:hover { background: #392d30; }
-    .fighter-slot .card-back, .fighter-card { min-height: 150px; }
     .fighter-card { justify-content: center; }
     .revealed > .fighter-card { animation: reveal-card 600ms ease-out; }
     @keyframes reveal-card {
@@ -219,17 +219,17 @@
       </ul>
       <section id="battle-area" class="battle-area" aria-labelledby="battle-title">
         <h2 id="battle-title" tabindex="-1">バトルエリア</h2>
-        <div class="battle-arena">
-          <section class="battle-side battle-side--player" data-attack-direction="right" aria-labelledby="player-label">
-            <h3 id="player-label">PLAYER</h3>
-            <div id="player-fighter" class="card fighter-card fighter-slot"><span class="empty-fighter">手札からカードを選んでください</span></div>
-          </section>
-          <div class="vs" aria-label="対戦">VS</div>
-          <section class="battle-side battle-side--cpu" data-attack-direction="left" aria-labelledby="cpu-label">
+        <div class="battle-arena" data-attack-axis="y">
+          <section class="battle-side battle-side--cpu" data-attack-direction="down" aria-labelledby="cpu-label">
             <h3 id="cpu-label">CPU</h3>
             <div id="cpu-fighter" class="fighter-slot">
               <div class="card-back" role="img" aria-label="CPUが選んだ裏向きカード"><span aria-hidden="true">?</span><span>CPU</span></div>
             </div>
+          </section>
+          <div class="vs" aria-label="対戦">VS</div>
+          <section class="battle-side battle-side--player" data-attack-direction="up" aria-labelledby="player-label">
+            <h3 id="player-label">PLAYER</h3>
+            <div id="player-fighter" class="card fighter-card fighter-slot"><span class="empty-fighter">手札からカードを選んでください</span></div>
           </section>
         </div>
         <div class="actions">
