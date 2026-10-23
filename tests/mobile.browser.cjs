@@ -1,183 +1,117 @@
-// 開発時のみ使用するPlaywrightによる表示回帰テスト。ゲーム本体に依存は追加しない。
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { chromium } = require('playwright');
-const root = path.resolve(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const scriptTags = [...html.matchAll(/<script src="([^"]+)" defer><\/script>/g)];
-assert.equal(scriptTags.length, 3);
-// 過去の無版番号URLとは別のキャッシュキーで全スクリプトを読み込む。
-const versions = scriptTags.map(([, src]) => new URL(src, 'https://test.invalid/').searchParams.get('v'));
-assert.ok(versions.every(Boolean));
-assert.equal(new Set(versions).size, 1);
-// ネットワークもサーバーも使わず、実際のファイルを記載順にブラウザへ読み込む。
-const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, src) => {
-  const file = src.split('?')[0];
-  return '<script>' + fs.readFileSync(path.join(root, file), 'utf8') + '</script>';
-});
-
-(async () => {
-  const browser = await chromium.launch({executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true,
-    args: ['--no-sandbox', '--disable-crashpad-for-testing']});
-  try {
-    for (const width of [320, 375, 390, 430, 768, 1280]) {
-      const context = await browser.newContext({viewport: {width, height: 812}, isMobile: width < 768, hasTouch: width < 768});
-      const page = await context.newPage();
-      page.setDefaultTimeout(5000);
-      const errors = [];
-      page.on('pageerror', error => errors.push(error.message));
-      await page.setContent(withScripts);
-      // 表示検証では長い名前の4人を確実に配る。抽選のランダム性はdeal.test.cjsで検証する。
-      await page.evaluate(() => {
-        const ranked = [...window.CHARACTERS].sort((a,b) => b.name.length - a.name.length);
-        let deals = 0;
-        window.HumanityMatch.deal = () => {
-          const swap = deals++ % 2 === 1;
-          const playerHand = swap ? ranked.slice(4,8) : ranked.slice(0,4);
-          const cpuHand = swap ? ranked.slice(0,4) : ranked.slice(4,8);
-          return {playerHand,cpuHand,cpuCard:cpuHand[0]};
+// 開発時のみPlaywrightを使用。実行時の外部依存・通信・サーバーは不要。
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {chromium}=require('playwright');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const tags=[...html.matchAll(/<script src="([^"]+)" defer><\/script>/g)];
+assert.equal(tags.length,4);
+const versions=tags.map(([,src])=>new URL(src,'https://test.invalid/').searchParams.get('v'));
+assert.ok(versions.every(Boolean));assert.equal(new Set(versions).size,1);
+const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<script>'+fs.readFileSync(path.join(root,src.split('?')[0]),'utf8')+'</script>');
+(async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox','--disable-crashpad-for-testing']});
+  try{
+    for(const width of [320,375,390,430,768,1280]){
+      const context=await browser.newContext({viewport:{width,height:812},isMobile:width<768,hasTouch:width<768});
+      const page=await context.newPage();page.setDefaultTimeout(5000);
+      const errors=[];page.on('pageerror',e=>errors.push(e.message));
+      await page.setContent(content);
+      // 最長名を確実に配り、実際の計算式に境界乱数を注入して進行を決定的に検証。
+      await page.evaluate(()=>{
+        const deal=window.HumanityMatch.deal,resolve=window.HumanityBattle.resolveRound;
+        window.__outcomes=['player','cpu','player'];window.__roundDraws=0;
+        window.HumanityMatch.deal=characters=>{
+          const ranked=[...characters].sort((a,b)=>b.name.length-a.name.length);
+          return window.__match=deal(ranked,()=>0.999999);
         };
-      });
-      await page.getByRole('button', {name: 'ゲーム開始', exact: true}).click();
-      assert.doesNotMatch(await page.locator('#hand-screen').innerText(), /あなたのカードを選ぶと左側に表示されます。|カードを1枚選んでください。能力値は非公開です。|キャラクターデータ v1/);
-      assert.equal(await page.getByRole('heading', {name:'あなたの手札',exact:true}).count(), 1);
-      assert.equal(await page.locator('#fight-button').isDisabled(), true);
-      await page.locator('#fight-button').evaluate(button => button.dispatchEvent(new MouseEvent('click',{bubbles:true})));
-      assert.equal(await page.locator('#cpu-fighter .card-back').count(), 1);
-      const emptyStatus = await page.locator('#battle-status').boundingBox();
-      assert.equal(emptyStatus.height, 0);
-      const measure = await page.evaluate(() => {
-        const backs = [...document.querySelectorAll('#cpu-hand .card')].map(el => {
-          const r = el.getBoundingClientRect();
-          return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};
+        window.HumanityBattle.resolveRound=(p,c)=>resolve(p,c,()=>{
+          const winner=window.__outcomes[window.__roundDraws++];
+          return winner==='player'?0:0.999999;
         });
-        const player = [...document.querySelectorAll('#hand .card')].map(el => {
-          const r = el.getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,width:r.width,height:r.height};
+      });
+      await page.getByRole('button',{name:'ゲーム開始',exact:true}).click();
+      assert.equal(await page.locator('#hand .card').count(),3);assert.equal(await page.locator('#cpu-hand .card').count(),3);
+      const geometry=await page.evaluate(()=>{
+        const rect=s=>{const r=document.querySelector(s).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};};
+        const fits=selector=>{
+          const cards=[...document.querySelectorAll(selector)];
+          return cards.every(card=>{const r=card.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&Math.abs(r.top-cards[0].getBoundingClientRect().top)<1&&
+            [...card.children].every(c=>c.scrollWidth<=c.clientWidth&&c.scrollHeight<=c.clientHeight+1);});
+        };
+        return {fits:fits('#hand .card')&&fits('#cpu-hand .card'),overflow:document.documentElement.scrollWidth>innerWidth,
+          cpu:rect('#cpu-fighter'),vs:rect('.battle-arena > .vs'),player:rect('#player-fighter'),
+          cpuHand:rect('#cpu-hand'),arena:rect('.battle-arena'),playerHand:rect('#hand')};
+      });
+      assert.equal(geometry.fits,true);assert.equal(geometry.overflow,false);
+      assert.ok(geometry.cpu.bottom<=geometry.vs.top&&geometry.vs.bottom<=geometry.player.top);
+      assert.ok(geometry.cpuHand.bottom<=geometry.arena.top&&geometry.arena.bottom<=geometry.playerHand.top);
+      const cpuProfiles=await page.locator('#cpu-hand .card').evaluateAll(cards=>cards.every(card=>{
+        const c=window.CHARACTERS.find(c=>c.name===card.querySelector('.card-name').textContent);
+        return c&&card.querySelector('.card-profile').textContent===`${c.age}歳 / ${c.height}cm / ${c.weight}kg`&&card.children.length===2;
+      }));assert.equal(cpuProfiles,true);
+      const roster=await page.evaluate(()=>[...window.__match.playerHand,...window.__match.cpuHand].map(c=>c.id));
+      assert.equal(new Set(roster).size,6);
+      for(let round=1;round<=3;round++){
+        assert.equal(await page.locator('#round-result').isVisible(),false);
+        assert.equal(await page.locator('#result-stats tr').count(),0);
+        assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/STR|SPD|END|STK|GRP|SUB/);
+        assert.equal(await page.locator('#cpu-fighter .card-back').count(),1);
+        assert.equal(await page.locator('#cpu-fighter .card-name').count(),0);
+        assert.equal(await page.locator('#fight-button').isDisabled(),true);
+        await page.locator('#fight-button').evaluate(b=>b.dispatchEvent(new MouseEvent('click',{bubbles:true})));
+        assert.equal(await page.evaluate(()=>window.__roundDraws),round-1);
+        const available=page.locator('#hand .card:not(:disabled)');assert.equal(await available.count(),4-round);
+        const playerName=await available.first().locator('.card-name').textContent();
+        if(width<768)await available.first().tap();else await available.first().click();
+        assert.equal(await page.locator('#player-fighter .card-name').textContent(),playerName);
+        const fight=page.locator('#fight-button');if(width<768)await fight.tap();else await fight.click();
+        assert.equal(await page.locator('#round-result').isVisible(),true);assert.equal(await page.locator('#result-stats tr').count(),6);
+        assert.equal(await page.locator('#hand .used').count(),round);assert.equal(await page.locator('#cpu-hand .used').count(),round);
+        assert.equal(await page.locator('#hand .card:disabled').count(),3);
+        assert.equal(await page.evaluate(()=>window.__roundDraws),round);
+        const expected=await page.evaluate(()=>{
+          const result=window.__match.rounds.at(-1),d=result.decision;
+          return {cpu:result.cpuCard.name,reason:window.HumanityBattle.describeResult(d),probability:`対戦前の勝率：PLAYER ${d.playerWinPercent}% ／ CPU ${100-d.playerWinPercent}%`,
+            rows:window.HumanityBattle.STATS.map(s=>[s,String(d.playerStats[s]),String(d.cpuStats[s]),String(d.playerStats[s]-d.cpuStats[s])])};
         });
-        return {backs,player,overflow:document.documentElement.scrollWidth > innerWidth,
-          statsVisible:/STR|SPD|END|STK|GRP|SUB/.test(document.querySelector('#hand-screen').innerText),
-          contentFits:[...document.querySelectorAll('#hand .card-name, #hand .card-profile, #hand .selection-label, #cpu-hand .card-name, #cpu-hand .card-profile')].every(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1),
-          handFits:['#hand','#cpu-hand'].every(selector => {const el=document.querySelector(selector);return el.scrollWidth <= el.clientWidth;}),
-          profileCount:document.querySelectorAll('#hand .card-profile').length,
-          columns:getComputedStyle(document.querySelector('#hand')).gridTemplateColumns.split(' ').length,
-          statsRetained:window.CHARACTERS.every(c => Object.keys(c.stats).length === 6)};
-      });
-      assert.equal(measure.backs.length, 4);
-      assert.ok(measure.backs.every(r => r.width > 0 && r.height >= 96 && r.x >= 0 && r.right <= width && r.y >= 0 && r.bottom <= 812));
-      assert.ok(measure.backs.every(r => Math.abs(r.y - measure.backs[0].y) < 1));
-      assert.equal(measure.overflow, false);
-      assert.equal(measure.statsVisible, false);
-      assert.equal(measure.profileCount, 4);
-      assert.equal(measure.columns, 4);
-      assert.equal(measure.handFits, true);
-      assert.equal(measure.contentFits, true);
-      assert.ok(measure.player.every(r => Math.abs(r.y - measure.player[0].y) < 1));
-      assert.ok(measure.player.every(r => r.width >= 44 && r.height >= 44 && r.x >= 0 && r.right <= width));
-      const cardsMatchData = await page.locator('#hand .card').evaluateAll(cards => cards.every(card => {
-        const character = window.CHARACTERS.find(c => c.id === card.dataset.characterId);
-        return card.querySelector('.card-name').textContent === character.name &&
-          card.querySelector('.card-profile').textContent === `${character.age}歳 / ${character.height}cm / ${character.weight}kg`;
-      }));
-      assert.equal(cardsMatchData, true);
-      const cpuProfiles = await page.locator('#cpu-hand .card').evaluateAll(cards => cards.every(card => {
-        const character = window.CHARACTERS.find(c => c.name === card.querySelector('.card-name').textContent);
-        return character && card.querySelector('.card-profile').textContent === `${character.age}歳 / ${character.height}cm / ${character.weight}kg` &&
-          card.children.length === 2 && card.tagName === 'ARTICLE' && Object.keys(card.dataset).length === 0 && !card.hasAttribute('aria-pressed');
-      }));
-      assert.equal(cpuProfiles, true);
-      assert.equal(await page.locator('#cpu-hand button, #cpu-hand .card-back').count(), 0);
-      assert.equal(await page.locator('#cpu-fighter .card-name').count(), 0);
-      assert.equal(measure.statsRetained, true);
-      const handIds = await page.locator('#hand .card').evaluateAll(cards => cards.map(c => c.dataset.characterId));
-      const sides = await page.evaluate(() => {
-        const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}; };
-        return {player:rect('#player-fighter'),cpu:rect('#cpu-fighter'),vs:rect('.battle-arena > .vs'),
-          topHand:rect('#cpu-hand'),arena:rect('.battle-arena'),bottomHand:rect('#hand'),
-          direction:[document.querySelector('.battle-side--player').dataset.attackDirection,document.querySelector('.battle-side--cpu').dataset.attackDirection]};
-      });
-      assert.ok(sides.cpu.bottom <= sides.vs.top && sides.vs.bottom <= sides.player.top);
-      assert.ok(Math.abs((sides.player.left+sides.player.right)/2 - (sides.cpu.left+sides.cpu.right)/2) < 1);
-      assert.ok(sides.topHand.bottom <= sides.arena.top && sides.arena.bottom <= sides.bottomHand.top);
-      const compactSpacing = await page.evaluate(() => {
-        const battle = document.querySelector('#battle-area').getBoundingClientRect();
-        const handHeading = document.querySelector('#hand-screen > h3').getBoundingClientRect();
-        const cards = document.querySelector('#hand').getBoundingClientRect();
-        return {afterBattle:handHeading.top-battle.bottom,beforeCards:cards.top-handHeading.bottom};
-      });
-      assert.ok(compactSpacing.afterBattle <= 16 && compactSpacing.beforeCards <= 12);
-      assert.deepEqual(sides.direction, ['up','down']);
-      await page.locator('#hand .card').first().click();
-      const playerName = await page.locator('#hand .card').first().locator('.card-name').textContent();
-      assert.equal(await page.locator('#player-fighter .card-name').textContent(), playerName);
-      assert.equal(await page.getByRole('button', {name:'バトル開始',exact:true}).count(), 0);
-      assert.equal(await page.locator('#cpu-fighter .card-back').count(), 1);
-      const fight = page.getByRole('button', {name:'このキャラで戦う',exact:true});
-      if (width < 768) await fight.tap(); else await fight.click();
-      assert.equal(await fight.isDisabled(), true);
-      const duplicateRejected = await page.evaluate(() => {
-        const front = document.querySelector('#cpu-fighter').firstElementChild;
-        const button = document.querySelector('#fight-button');
-        for(let n=0;n<10;n++) button.dispatchEvent(new MouseEvent('click',{bubbles:true}));
-        return document.querySelector('#cpu-fighter').firstElementChild === front;
-      });
-      assert.equal(duplicateRejected,true);
-      assert.equal(await page.locator('#cpu-hand .card:visible').count(), 4);
-      assert.equal(await page.locator('#hand .card:visible').count(), 4);
-      assert.equal(await page.locator('#hand .card:disabled').count(), 4);
-      const cpuName = await page.locator('#cpu-fighter .card-name').textContent();
-      assert.ok(cpuName);
-      const revealedSides = await page.evaluate(() => {
-        const player=document.querySelector('#player-fighter').getBoundingClientRect();
-        const cpu=document.querySelector('#cpu-fighter').getBoundingClientRect();
-        const vs=document.querySelector('.battle-arena > .vs').getBoundingClientRect();
-        return {vertical:cpu.bottom <= vs.top && vs.bottom <= player.top,centered:Math.abs((player.left+player.right)/2-(cpu.left+cpu.right)/2)<1,overflow:document.documentElement.scrollWidth>innerWidth};
-      });
-      assert.deepEqual(revealedSides,{vertical:true,centered:true,overflow:false});
-      if (process.env.SCREENSHOT_DIR && width === 375) {
-        await page.locator('#cpu-fighter .fighter-card').evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
-        fs.mkdirSync(process.env.SCREENSHOT_DIR, {recursive:true});
-        await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-battle.png'),fullPage:true});
+        assert.equal(await page.locator('#cpu-fighter .card-name').textContent(),expected.cpu);
+        assert.equal(await page.locator('#result-reason').textContent(),expected.reason);
+        assert.equal(await page.locator('#result-probability').textContent(),expected.probability);
+        assert.deepEqual(await page.locator('#result-stats tr').evaluateAll(rows=>rows.map(row=>[...row.children].map(c=>c.textContent))),expected.rows);
+        // アニメーション中もイベント連打も同一の保存結果を使い、再抽選しない。
+        const stable=await page.evaluate(()=>{
+          const result=window.__match.rounds.at(-1),node=document.querySelector('#cpu-fighter').firstElementChild;
+          for(let n=0;n<10;n++)document.querySelector('#fight-button').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+          return result===window.__match.rounds.at(-1)&&node===document.querySelector('#cpu-fighter').firstElementChild;
+        });assert.equal(stable,true);
+        await page.locator('#cpu-fighter .fighter-card').evaluate(el=>Promise.all(el.getAnimations().map(a=>a.finished)));
+        assert.equal(await page.evaluate(()=>window.__roundDraws),round);
+        assert.equal(await page.locator('#result-reason').textContent(),expected.reason);
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+        if(process.env.SCREENSHOT_DIR&&width===375&&round===1){fs.mkdirSync(process.env.SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'round-result.png'),fullPage:true});}
+        if(round<3){
+          await page.getByRole('button',{name:'次のラウンドへ',exact:true}).click();
+          assert.equal(await page.locator('#hand .card.used:disabled').count(),round);
+          assert.equal(await page.locator('#fight-button').isDisabled(),true);
+          assert.deepEqual(await page.evaluate(()=>[...window.__match.playerHand,...window.__match.cpuHand].map(c=>c.id)),roster);
+        }
       }
-      assert.doesNotMatch(await page.locator('#battle-area').innerText(), /STR|SPD|END|STK|GRP|SUB/);
-      await page.getByRole('button', {name:'手札に戻る',exact:true}).click();
-      assert.deepEqual(await page.locator('#hand .card').evaluateAll(cards => cards.map(c => c.dataset.characterId)), handIds);
-      assert.equal(await page.locator('#hand .card[aria-pressed="true"]').count(), 1);
-      await page.getByRole('button', {name:'このキャラで戦う',exact:true}).click();
-      assert.equal(await page.locator('#cpu-fighter .card-name').textContent(), cpuName);
-      await page.getByRole('button', {name:'手札に戻る',exact:true}).click();
-      // 旧描画が能力値DOMを追加しても、見た目とアクセシビリティから除かれる。
-      await page.evaluate(() => {
-        const legacy = document.createElement('span');
-        legacy.className = 'card-stats'; legacy.textContent = 'STR 99 SPD 99 END 99 STK 99 GRP 99 SUB 99';
-        document.querySelector('#hand .card').append(legacy);
-        document.querySelector('#cpu-hand .card').append(legacy.cloneNode(true));
-      });
-      assert.equal(await page.locator('#hand .card-stats').isVisible(), false);
-      assert.equal(await page.locator('#cpu-hand .card-stats').isVisible(), false);
-      assert.doesNotMatch(await page.locator('#cpu-hand').ariaSnapshot(), /STR|SPD|END|STK|GRP|SUB/);
-      assert.doesNotMatch(await page.locator('#hand').innerText(), /STR|SPD|END|STK|GRP|SUB/);
-      assert.doesNotMatch(await page.locator('#hand').ariaSnapshot(), /STR|SPD|END|STK|GRP|SUB/);
-      await page.getByRole('button', {name:'配り直す',exact:true}).click();
-      const cpuFitsAfterRedeal = await page.locator('#cpu-hand .card').evaluateAll(cards => cards.every(card => {
-        const r = card.getBoundingClientRect();
-        return r.left >= 0 && r.right <= innerWidth && Math.abs(r.top-cards[0].getBoundingClientRect().top)<1 &&
-          [...card.children].every(child => child.scrollWidth <= child.clientWidth && child.scrollHeight <= child.clientHeight+1);
-      }));
-      assert.equal(cpuFitsAfterRedeal,true);
-      assert.equal(await page.locator('#cpu-fighter .card-name').count(),0);
-      assert.equal(await page.locator('#cpu-fighter .card-back').count(),1);
-      assert.equal(await page.locator('#cpu-hand .card:visible').count(), 4);
-      assert.equal(await page.locator('#hand .card[aria-pressed="true"]').count(), 0);
-      assert.equal(await page.locator('#battle-status').textContent(), '');
-      assert.equal((await page.locator('#battle-status').boundingBox()).height, 0);
-      if (process.env.SCREENSHOT_DIR && width === 375) {
-        fs.mkdirSync(process.env.SCREENSHOT_DIR, {recursive:true});
-        await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-hand.png'),fullPage:true});
+      assert.match(await page.locator('#match-score').textContent(),/試合終了.*PLAYER 2勝.*CPU 1勝/);
+      assert.equal(await page.locator('#return-button').isVisible(),false);
+      await page.evaluate(()=>{window.__outcomes=['cpu','cpu'];window.__roundDraws=0;});
+      await page.getByRole('button',{name:'新しい試合',exact:true}).click();
+      assert.equal(await page.locator('#hand .used').count(),0);
+      for(let round=1;round<=2;round++){
+        await page.locator('#hand .card:not(:disabled)').first().click();await page.locator('#fight-button').click();
+        if(round===1)await page.getByRole('button',{name:'次のラウンドへ',exact:true}).click();
       }
-      assert.deepEqual(errors, []);
-      console.log(`PASS ${width}px: CPU表向き横4枚・出場者は開始時公開、プレイヤー手札横4枚・長い名前も収まる、CPU上/VS/PLAYER下、能力値非表示、1回タップ公開/多重実行防止/戻る/再配布`);
+      assert.match(await page.locator('#match-score').textContent(),/試合終了.*PLAYER 0勝.*CPU 2勝/);
+      assert.equal(await page.evaluate(()=>window.__match.rounds.length),2);
+      assert.equal(await page.locator('#return-button').isVisible(),false);
+      assert.equal(await page.locator('#fight-button').isDisabled(),true);
+      assert.deepEqual(errors,[]);
+      console.log(`PASS ${width}px: 公開手札3枚・縦配置・事前能力非表示・結果6能力/勝率/理由・抽選1回・再使用禁止・3戦決着/2連勝終了`);
       await context.close();
     }
-  } finally { await browser.close(); }
-})().catch(error => {console.error(error);process.exitCode=1;});
+  }finally{await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});
