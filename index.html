@@ -28,10 +28,18 @@
     }
 
     h1 {
-      margin: 0 0 40px;
+      margin: 0 0 16px;
       font-size: clamp(1.75rem, 6vw, 3.5rem);
       line-height: 1.5;
       letter-spacing: 0.06em;
+      overflow-wrap: anywhere;
+    }
+
+    .subtitle {
+      margin: 0 0 40px;
+      color: #d8d4e4;
+      font-size: clamp(1rem, 3.5vw, 1.25rem);
+      line-height: 1.8;
       overflow-wrap: anywhere;
     }
 
@@ -66,6 +74,7 @@
 <body>
   <main>
     <h1>人類最強決定戦</h1>
+    <p class="subtitle">30人の戦士から最強を決めろ！</p>
     <button id="start-button" type="button">ゲーム開始</button>
     <p id="status" class="status" role="status"></p>
   </main>
