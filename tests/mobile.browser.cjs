@@ -71,11 +71,15 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         assert.equal(await page.evaluate(()=>window.__roundDraws),round);
         const expected=await page.evaluate(()=>{
           const result=window.__match.rounds.at(-1),d=result.decision;
-          return {cpu:result.cpuCard.name,reason:window.HumanityBattle.describeResult(d),probability:`対戦前の勝率：PLAYER ${d.playerWinPercent}% ／ CPU ${100-d.playerWinPercent}%`,
-            rows:window.HumanityBattle.STATS.map(s=>[s,String(d.playerStats[s]),String(d.cpuStats[s]),String(d.playerStats[s]-d.cpuStats[s])])};
+          return {cpu:result.cpuCard.name,reason:window.HumanityBattle.describeResult(d),probability:`対戦前の勝率：あなた ${d.playerWinPercent}% ／ CPU ${100-d.playerWinPercent}%`,
+            rows:window.HumanityBattle.STATS.map(s=>[window.HumanityBattle.STAT_LABELS[s],String(d.playerStats[s]),String(d.cpuStats[s])]),headline:window.HumanityBattle.createCommentary(d).headline};
         });
         assert.equal(await page.locator('#cpu-fighter .card-name').textContent(),expected.cpu);
         assert.equal(await page.locator('#result-reason').textContent(),expected.reason);
+        assert.equal(await page.locator('#result-headline').textContent(),expected.headline);
+        assert.ok(expected.reason.length>=100&&expected.reason.length<=150);
+        assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/PLAYER|STR|SPD|END|STK|GRP|SUB|抽選値|判定境界|戦闘力|計算式/);
+        assert.equal(await page.locator('#round-result thead th').count(),3);
         assert.equal(await page.locator('#result-probability').textContent(),expected.probability);
         assert.deepEqual(await page.locator('#result-stats tr').evaluateAll(rows=>rows.map(row=>[...row.children].map(c=>c.textContent))),expected.rows);
         // アニメーション中もイベント連打も同一の保存結果を使い、再抽選しない。
@@ -87,6 +91,10 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         await page.locator('#cpu-fighter .fighter-card').evaluate(el=>Promise.all(el.getAnimations().map(a=>a.finished)));
         assert.equal(await page.evaluate(()=>window.__roundDraws),round);
         assert.equal(await page.locator('#result-reason').textContent(),expected.reason);
+        assert.equal(await page.locator('#result-headline').textContent(),expected.headline);
+        assert.ok(expected.reason.length>=100&&expected.reason.length<=150);
+        assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/PLAYER|STR|SPD|END|STK|GRP|SUB|抽選値|判定境界|戦闘力|計算式/);
+        assert.equal(await page.locator('#round-result thead th').count(),3);
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
         if(process.env.SCREENSHOT_DIR&&width===375&&round===1){fs.mkdirSync(process.env.SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'round-result.png'),fullPage:true});}
         if(round<3){
@@ -96,7 +104,7 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
           assert.deepEqual(await page.evaluate(()=>[...window.__match.playerHand,...window.__match.cpuHand].map(c=>c.id)),roster);
         }
       }
-      assert.match(await page.locator('#match-score').textContent(),/試合終了.*PLAYER 2勝.*CPU 1勝/);
+      assert.match(await page.locator('#match-score').textContent(),/試合終了.*あなた 2勝.*CPU 1勝/);
       assert.equal(await page.locator('#return-button').isVisible(),false);
       await page.evaluate(()=>{window.__outcomes=['cpu','cpu'];window.__roundDraws=0;});
       await page.getByRole('button',{name:'新しい試合',exact:true}).click();
@@ -105,7 +113,7 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         await page.locator('#hand .card:not(:disabled)').first().click();await page.locator('#fight-button').click();
         if(round===1)await page.getByRole('button',{name:'次のラウンドへ',exact:true}).click();
       }
-      assert.match(await page.locator('#match-score').textContent(),/試合終了.*PLAYER 0勝.*CPU 2勝/);
+      assert.match(await page.locator('#match-score').textContent(),/試合終了.*あなた 0勝.*CPU 2勝/);
       assert.equal(await page.evaluate(()=>window.__match.rounds.length),2);
       assert.equal(await page.locator('#return-button').isVisible(),false);
       assert.equal(await page.locator('#fight-button').isDisabled(),true);

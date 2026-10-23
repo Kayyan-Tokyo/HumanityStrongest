@@ -72,7 +72,7 @@
 
   function renderScore() {
     const prefix = match.phase === 'finished' ? '試合終了' : `第${match.round}ラウンド / 最大3`;
-    get('match-score').textContent = `${prefix}　PLAYER ${match.playerWins}勝 — CPU ${match.cpuWins}勝`;
+    get('match-score').textContent = `${prefix}　あなた ${match.playerWins}勝 — CPU ${match.cpuWins}勝`;
   }
 
   function selectCard(character) {
@@ -104,10 +104,10 @@
     const front = document.createElement('div'); front.className = 'card fighter-card';
     profileContent(front, result.cpuCard);
     get('cpu-fighter').replaceChildren(front); get('cpu-fighter').classList.add('revealed');
-    const roundText = result.winner === 'player' ? 'PLAYERの勝ち' : 'CPUの勝ち';
+    const roundText = result.winner === 'player' ? 'あなたの勝利' : 'あなたの敗北';
     if (match.phase === 'finished') {
       stage = 'finished'; get('return-button').hidden = true;
-      const finalText = match.winner === 'player' ? 'PLAYERの勝利です！' : 'CPUの勝利です。';
+      const finalText = match.winner === 'player' ? 'あなたの勝利です！' : 'CPUの勝利です。';
       get('battle-status').textContent = `第${result.round}ラウンド：${roundText}。${finalText}`;
     } else {
       stage = 'result'; get('return-button').hidden = false;
@@ -125,23 +125,26 @@
     get('result-stats').replaceChildren();
     get('result-probability').textContent = '';
     get('result-reason').textContent = '';
+    get('result-headline').textContent = '';
   }
 
   function renderResult(result) {
     const decision = result.decision;
-    get('result-title').textContent = `第${result.round}ラウンド リザルト`;
-    get('result-probability').textContent = `対戦前の勝率：PLAYER ${decision.playerWinPercent}% ／ CPU ${100 - decision.playerWinPercent}%`;
+    get('result-title').textContent = `第${result.round}ラウンドの結果`;
+    get('result-probability').textContent = `対戦前の勝率：あなた ${decision.playerWinPercent}% ／ CPU ${100 - decision.playerWinPercent}%`;
     get('result-stats').replaceChildren();
     for (const stat of window.HumanityBattle.STATS) {
       const row = document.createElement('tr');
-      const label = document.createElement('th'); label.setAttribute('scope', 'row'); label.textContent = stat;
+      const label = document.createElement('th'); label.setAttribute('scope', 'row'); label.textContent = window.HumanityBattle.STAT_LABELS[stat];
       row.append(label);
-      for (const value of [decision.playerStats[stat], decision.cpuStats[stat], decision.playerStats[stat] - decision.cpuStats[stat]]) {
+      for (const value of [decision.playerStats[stat], decision.cpuStats[stat]]) {
         const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
       }
       get('result-stats').append(row);
     }
-    get('result-reason').textContent = window.HumanityBattle.describeResult(decision);
+    const commentary = window.HumanityBattle.createCommentary(decision);
+    get('result-headline').textContent = commentary.headline;
+    get('result-reason').textContent = commentary.body;
     get('round-result').hidden = false;
   }
 
