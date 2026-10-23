@@ -133,7 +133,27 @@
     button:disabled:hover { background: #ffbf60; }
     .secondary { background: transparent; color: #ffcf89; }
     .secondary:hover { background: #30283f; }
-    .fighter-slot { width: min(100%, 320px); margin: 0 auto; perspective: 800px; }
+    .battle-area { margin: 28px 0; scroll-margin-top: 16px; }
+    .battle-arena {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: stretch;
+    }
+    .battle-side { display: flex; flex-direction: column; min-width: 0; }
+    .battle-side h3 { margin: 0 0 12px; font-size: 0.9rem; letter-spacing: 0.06em; }
+    /* 将来の突進演出は、この左右固定の各side内のカードを中央へ動かす。 */
+    .battle-side--player { --attack-direction: 1; }
+    .battle-side--cpu { --attack-direction: -1; }
+    .battle-arena > .vs { align-self: center; margin: 0; font-size: clamp(1rem, 4vw, 2rem); }
+    .fighter-slot { width: 100%; flex: 1; margin: 0 auto; perspective: 800px; min-width: 0; }
+    .battle-arena .fighter-card, .battle-arena .card-back { min-height: 190px; height: 100%; }
+    .battle-arena .fighter-card { padding: 16px 10px; }
+    .empty-fighter { color: #d8d4e4; line-height: 1.8; }
+    .battle-area .status { margin-top: 16px; }
+    button.card:disabled { opacity: 0.75; cursor: default; }
+    button.card:disabled:hover { background: #211e30; }
+    button.card[aria-pressed="true"]:disabled:hover { background: #392d30; }
     .fighter-slot .card-back, .fighter-card { min-height: 150px; }
     .fighter-card { justify-content: center; }
     .revealed > .fighter-card { animation: reveal-card 600ms ease-out; }
@@ -175,7 +195,27 @@
         <li><div class="card-back" role="img" aria-label="CPUの裏向きカード3"><span aria-hidden="true">?</span><span>CPU</span></div></li>
         <li><div class="card-back" role="img" aria-label="CPUの裏向きカード4"><span aria-hidden="true">?</span><span>CPU</span></div></li>
       </ul>
-      <div class="vs" aria-label="対戦">VS</div>
+      <section id="preparation-screen" class="battle-area" aria-labelledby="preparation-title">
+        <h2 id="preparation-title" tabindex="-1">バトルエリア</h2>
+        <div class="battle-arena">
+          <section class="battle-side battle-side--player" data-attack-direction="right" aria-labelledby="player-label">
+            <h3 id="player-label">PLAYER</h3>
+            <div id="player-fighter" class="card fighter-card fighter-slot"><span class="empty-fighter">手札からカードを選んでください</span></div>
+          </section>
+          <div class="vs" aria-label="対戦">VS</div>
+          <section class="battle-side battle-side--cpu" data-attack-direction="left" aria-labelledby="cpu-label">
+            <h3 id="cpu-label">CPU</h3>
+            <div id="cpu-fighter" class="fighter-slot">
+              <div class="card-back" role="img" aria-label="CPUが選んだ裏向きカード"><span aria-hidden="true">?</span><span>CPU</span></div>
+            </div>
+          </section>
+        </div>
+        <div class="actions">
+          <button id="battle-button" type="button" hidden>バトル開始</button>
+          <button id="return-button" type="button" hidden>手札に戻る</button>
+        </div>
+        <p id="battle-status" class="status" role="status">あなたのカードを選ぶと左側に表示されます。</p>
+      </section>
       <h3>あなたの手札</h3>
       <p class="hand-note">カードを1枚選んでください。能力値は非公開です。<br>キャラクターデータ v1</p>
       <ul id="hand" class="hand" aria-label="あなたの手札4枚"></ul>
@@ -185,23 +225,9 @@
       </div>
       <p id="status" class="status" role="status"></p>
     </section>
-    <section id="preparation-screen" aria-labelledby="preparation-title" hidden>
-      <h2 id="preparation-title" tabindex="-1">対戦準備</h2>
-      <p class="hand-note">キャラクターデータ v1</p>
-      <h3>CPUの出場カード</h3>
-      <div id="cpu-fighter" class="fighter-slot"></div>
-      <div class="vs" aria-label="対戦">VS</div>
-      <h3>あなたの出場カード</h3>
-      <div id="player-fighter" class="card fighter-card fighter-slot"></div>
-      <div class="actions">
-        <button id="battle-button" type="button">バトル開始</button>
-        <button id="return-button" type="button" hidden>手札に戻る</button>
-      </div>
-      <p id="battle-status" class="status" role="status"></p>
-    </section>
   </main>
-  <script src="./js/characters.js?v=characters-v1" defer></script>
-  <script src="./js/match.js?v=characters-v1" defer></script>
-  <script src="./js/game.js?v=characters-v1" defer></script>
+  <script src="./js/characters.js?v=battle-sides-1" defer></script>
+  <script src="./js/match.js?v=battle-sides-1" defer></script>
+  <script src="./js/game.js?v=battle-sides-1" defer></script>
 </body>
 </html>

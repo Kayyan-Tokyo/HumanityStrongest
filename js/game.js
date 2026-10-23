@@ -2,7 +2,7 @@
   'use strict';
 
   const get = id => document.getElementById(id);
-  const screens = [get('title-screen'), get('hand-screen'), get('preparation-screen')];
+  const screens = [get('title-screen'), get('hand-screen')];
   const handList = get('hand');
   const fightButton = get('fight-button');
   let match = null;
@@ -41,6 +41,30 @@
     return back;
   }
 
+  function renderPlayerFighter() {
+    get('player-fighter').replaceChildren();
+    const character = match.playerHand.find(c => c.id === selectedId);
+    if (character) {
+      profileContent(get('player-fighter'), character);
+    } else {
+      const empty = document.createElement('span');
+      empty.className = 'empty-fighter';
+      empty.textContent = '手札からカードを選んでください';
+      get('player-fighter').append(empty);
+    }
+  }
+
+  function concealCpuFighter() {
+    get('cpu-fighter').classList.remove('revealed');
+    get('cpu-fighter').replaceChildren(cardBack('CPUが選んだ裏向きカード'));
+  }
+
+  function lockHand(locked) {
+    for (const card of handList.querySelectorAll('.card')) card.disabled = locked;
+    get('redeal-button').disabled = locked;
+    fightButton.disabled = locked || !selectedId;
+  }
+
   function selectCard(character) {
     if (stage !== 'hand') return;
     selectedId = selectedId === character.id ? null : character.id;
@@ -50,6 +74,7 @@
       card.querySelector('.selection-label').textContent = selected ? '選択中' : 'タップして選択';
     }
     fightButton.disabled = !selectedId;
+    renderPlayerFighter();
     get('status').textContent = selectedId
       ? `${character.name}を選択しました。「このキャラで戦う」で対戦準備へ進めます。`
       : '選択を解除しました。カードを1枚選んでください。';
@@ -84,6 +109,12 @@
       item.append(card);
       handList.append(item);
     }
+    lockHand(false);
+    renderPlayerFighter();
+    concealCpuFighter();
+    get('battle-button').hidden = true;
+    get('return-button').hidden = true;
+    get('battle-status').textContent = 'あなたのカードを選ぶと左側に表示されます。';
     get('status').textContent = '両者に4枚ずつ配りました。あなたのカードを1枚選んでください。';
   }
 
@@ -98,16 +129,15 @@
   });
   fightButton.addEventListener('click', () => {
     if (stage !== 'hand' || !selectedId) return;
-    const character = match.playerHand.find(c => c.id === selectedId);
-    get('player-fighter').replaceChildren();
-    profileContent(get('player-fighter'), character);
-    get('cpu-fighter').classList.remove('revealed');
-    get('cpu-fighter').replaceChildren(cardBack('CPUが選んだ裏向きカード'));
+    renderPlayerFighter();
+    concealCpuFighter();
+    lockHand(true);
     get('battle-button').hidden = false;
     get('return-button').hidden = true;
     get('battle-status').textContent = 'CPUのカードはまだ非公開です。「バトル開始」で公開します。';
     stage = 'preparation';
-    showScreen('preparation-screen', 'preparation-title');
+    get('preparation-title').focus({ preventScroll: true });
+    get('preparation-screen').scrollIntoView({ block: 'start', behavior: 'instant' });
   });
   get('battle-button').addEventListener('click', () => {
     if (stage !== 'preparation') return;
@@ -125,8 +155,14 @@
   get('return-button').addEventListener('click', () => {
     if (stage !== 'revealed') return;
     stage = 'hand';
-    showScreen('hand-screen', 'hand-title');
-    // 配布・描画を呼ばず、両者の手札と選択をそのまま保持。
+    concealCpuFighter();
+    lockHand(false);
+    get('return-button').hidden = true;
+    get('battle-status').textContent = 'カードを選び直すか、同じカードで再び対戦準備へ進めます。';
+    const selected = [...handList.querySelectorAll('.card')].find(card => card.dataset.characterId === selectedId);
+    selected.focus({ preventScroll: true });
+    selected.scrollIntoView({ block: 'center', behavior: 'instant' });
+    // 再配布を呼ばず、両者の手札と選択をそのまま保持。
     get('status').textContent = '手札に戻りました。両者の手札と選択は変わっていません。';
   });
 })();

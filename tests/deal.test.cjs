@@ -19,6 +19,7 @@ class Element {
   addEventListener(event, handler) { this.listeners[event] = handler; }
   click() { if (!this.disabled) this.listeners.click?.(); }
   focus() { this.focused = true; }
+  scrollIntoView() { this.scrolled = true; }
   querySelectorAll(selector) {
     return this.children.flatMap(child => [
       ...(child.className.split(' ').includes(selector.slice(1)) ? [child] : []),
@@ -90,7 +91,7 @@ function textTree(element) {
 }
 function assertNoStats(element) { assert.doesNotMatch(textTree(element), /STR|SPD|END|STK|GRP|SUB/); }
 assert.equal(ids['hand-screen'].hidden, true);
-assert.equal(ids['preparation-screen'].hidden, true);
+assert.equal(ids['battle-button'].hidden, true);
 ids['start-button'].click();
 assert.equal(ids['title-screen'].hidden, true);
 assert.equal(ids['hand-screen'].hidden, false);
@@ -98,7 +99,7 @@ assert.equal(cards().length, 4);
 assert.equal(ids['cpu-hand'].children.length, 4);
 assert.equal(ids['fight-button'].disabled, true);
 ids['fight-button'].click();
-assert.equal(ids['preparation-screen'].hidden, true);
+assert.equal(ids['battle-button'].hidden, true);
 assertNoStats(ids.hand);
 for (const c of currentMatch.cpuHand) {
   assert.ok(!textTree(ids['cpu-hand']).includes(c.name));
@@ -109,6 +110,7 @@ for (let i = 0; i < 4; i++) {
   assert.match(cards()[i].querySelector('.card-profile').textContent, /歳 \/ \d+cm \/ \d+kg/);
 }
 cards()[0].click(); assert.equal(cards()[0].attributes['aria-pressed'], 'true');
+assert.equal(ids['player-fighter'].querySelector('.card-name').textContent, currentMatch.playerHand[0].name);
 cards()[1].click(); assert.equal(cards()[0].attributes['aria-pressed'], 'false');
 cards()[1].click(); assert.equal(ids['fight-button'].disabled, true);
 cards()[2].click();
@@ -116,12 +118,18 @@ const selectedCard = cards()[2];
 const playerNodes = [...ids.hand.children];
 const cpuNodes = [...ids['cpu-hand'].children];
 const savedMatch = currentMatch;
+const selectedName = selectedCard.querySelector('.card-name').textContent;
 ids['fight-button'].click();
-assert.equal(ids['hand-screen'].hidden, true);
-assert.equal(ids['preparation-screen'].hidden, false);
+assert.equal(ids['hand-screen'].hidden, false);
+assert.equal(ids['battle-button'].hidden, false);
+assert.ok(cards().every(card => card.disabled));
+assert.equal(ids['redeal-button'].disabled, true);
 assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length, 1);
 assert.ok(!textTree(ids['cpu-fighter']).includes(currentMatch.cpuCard.name));
 assertNoStats(ids['player-fighter']);
+assert.equal(ids['player-fighter'].querySelector('.card-name').textContent, selectedName);
+cards()[0].click();
+assert.equal(ids['player-fighter'].querySelector('.card-name').textContent, selectedName);
 assert.equal(ids['return-button'].hidden, true);
 ids['battle-button'].click();
 assert.equal(ids['battle-button'].hidden, true);
@@ -131,6 +139,8 @@ assertNoStats(ids['cpu-fighter']);
 ids['return-button'].click();
 assert.equal(ids['hand-screen'].hidden, false);
 assert.equal(dealCount, 1);
+assert.ok(cards().every(card => !card.disabled));
+assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length, 1);
 assert.equal(currentMatch, savedMatch);
 assert.deepEqual(ids.hand.children, playerNodes);
 assert.deepEqual(ids['cpu-hand'].children, cpuNodes);
