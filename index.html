@@ -67,12 +67,11 @@
     main.playing { max-width: 760px; margin: 0 auto; padding: 12px 0; }
     h2 { margin: 0 0 16px; font-size: clamp(1.5rem, 5vw, 2rem); }
     h3 { margin: 20px 0 12px; font-size: 1.1rem; }
-    .hand-note { color: #d8d4e4; line-height: 1.8; font-size: 0.9rem; }
     .hand, .cpu-hand {
       display: grid;
       gap: 12px;
       padding: 0;
-      margin: 20px 0;
+      margin: 12px 0;
       list-style: none;
     }
     .hand {
@@ -147,7 +146,12 @@
     button:disabled:hover { background: #ffbf60; }
     .secondary { background: transparent; color: #ffcf89; }
     .secondary:hover { background: #30283f; }
-    .battle-area { margin: 28px 0; scroll-margin-top: 16px; }
+    .battle-area { margin: 16px 0; scroll-margin-top: 16px; }
+    .battle-area h2 { margin-bottom: 12px; }
+    #hand-screen > h3 { margin: 16px 0 8px; }
+    #hand-screen > .actions { margin-top: 16px; }
+    .battle-area .actions { margin-top: 0; }
+    .battle-area .actions button:not([hidden]) { margin-top: 12px; }
     .battle-arena {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -189,12 +193,12 @@
     }
 
     .status {
-      min-height: 3em;
-      margin: 24px 0 0;
+      margin: 16px 0 0;
       color: #d8d4e4;
       font-size: 0.95rem;
       line-height: 1.5;
     }
+    .status:empty { margin: 0; }
   </style>
 </head>
 <body>
@@ -232,10 +236,9 @@
           <button id="battle-button" type="button" hidden>バトル開始</button>
           <button id="return-button" type="button" hidden>手札に戻る</button>
         </div>
-        <p id="battle-status" class="status" role="status">あなたのカードを選ぶと左側に表示されます。</p>
+        <p id="battle-status" class="status" role="status"></p>
       </section>
       <h3>あなたの手札</h3>
-      <p class="hand-note">カードを1枚選んでください。能力値は非公開です。<br>キャラクターデータ v1</p>
       <ul id="hand" class="hand" aria-label="あなたの手札4枚"></ul>
       <div class="actions">
         <button id="fight-button" type="button" disabled>このキャラで戦う</button>
@@ -244,8 +247,8 @@
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=battle-sides-1" defer></script>
-  <script src="./js/match.js?v=battle-sides-1" defer></script>
-  <script src="./js/game.js?v=battle-sides-1" defer></script>
+  <script src="./js/characters.js?v=compact-copy-1" defer></script>
+  <script src="./js/match.js?v=compact-copy-1" defer></script>
+  <script src="./js/game.js?v=compact-copy-1" defer></script>
 </body>
 </html>

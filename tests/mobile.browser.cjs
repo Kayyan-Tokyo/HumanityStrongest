@@ -34,6 +34,10 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         window.HumanityMatch.deal = () => ({playerHand:ranked.slice(0,4),cpuHand:ranked.slice(4,8),cpuCard:ranked[4]});
       });
       await page.getByRole('button', {name: 'ゲーム開始', exact: true}).click();
+      assert.doesNotMatch(await page.locator('#hand-screen').innerText(), /あなたのカードを選ぶと左側に表示されます。|カードを1枚選んでください。能力値は非公開です。|キャラクターデータ v1/);
+      assert.equal(await page.getByRole('heading', {name:'あなたの手札',exact:true}).count(), 1);
+      const emptyStatus = await page.locator('#battle-status').boundingBox();
+      assert.equal(emptyStatus.height, 0);
       const measure = await page.evaluate(() => {
         const backs = [...document.querySelectorAll('#cpu-hand .card-back')].map(el => {
           const r = el.getBoundingClientRect();
@@ -78,6 +82,13 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       assert.ok(sides.player.right <= sides.vs.left && sides.vs.right <= sides.cpu.left);
       assert.ok(Math.abs(sides.player.top - sides.cpu.top) < 1);
       assert.ok(sides.topHand.bottom <= sides.arena.top && sides.arena.bottom <= sides.bottomHand.top);
+      const compactSpacing = await page.evaluate(() => {
+        const battle = document.querySelector('#preparation-screen').getBoundingClientRect();
+        const handHeading = document.querySelector('#hand-screen > h3').getBoundingClientRect();
+        const cards = document.querySelector('#hand').getBoundingClientRect();
+        return {afterBattle:handHeading.top-battle.bottom,beforeCards:cards.top-handHeading.bottom};
+      });
+      assert.ok(compactSpacing.afterBattle <= 16 && compactSpacing.beforeCards <= 12);
       assert.deepEqual(sides.direction, ['right','left']);
       await page.locator('#hand .card').first().click();
       const playerName = await page.locator('#hand .card').first().locator('.card-name').textContent();
@@ -121,6 +132,8 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       await page.getByRole('button', {name:'配り直す',exact:true}).click();
       assert.equal(await page.locator('#cpu-hand .card-back:visible').count(), 4);
       assert.equal(await page.locator('#hand .card[aria-pressed="true"]').count(), 0);
+      assert.equal(await page.locator('#battle-status').textContent(), '');
+      assert.equal((await page.locator('#battle-status').boundingBox()).height, 0);
       if (process.env.SCREENSHOT_DIR && width === 375) {
         fs.mkdirSync(process.env.SCREENSHOT_DIR, {recursive:true});
         await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-hand.png'),fullPage:true});
