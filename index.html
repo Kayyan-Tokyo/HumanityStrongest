@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10121b">
+  <title>人類最強決定戦</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: #f8fafc;
+      background: radial-gradient(ellipse at top, #29233e, #10121b 70%);
+      font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    }
+
+    main {
+      width: 100%;
+      max-width: 720px;
+      text-align: center;
+      padding: 48px 0;
+    }
+
+    h1 {
+      margin: 0 0 40px;
+      font-size: clamp(1.75rem, 6vw, 3.5rem);
+      line-height: 1.5;
+      letter-spacing: 0.06em;
+      overflow-wrap: anywhere;
+    }
+
+    button {
+      min-height: 56px;
+      width: min(100%, 280px);
+      padding: 16px 32px;
+      border: 1px solid #ffd18a;
+      border-radius: 12px;
+      color: #231600;
+      background: #ffbf60;
+      font: inherit;
+      font-size: 1.125rem;
+      font-weight: 700;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    button:hover { background: #ffd18a; }
+    button:active { background: #efa640; }
+    button:focus-visible { outline: 3px solid #ffffff; outline-offset: 6px; }
+
+    .status {
+      min-height: 3em;
+      margin: 24px 0 0;
+      color: #d8d4e4;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>人類最強決定戦</h1>
+    <button id="start-button" type="button">ゲーム開始</button>
+    <p id="status" class="status" role="status"></p>
+  </main>
+  <script>
+    const startButton = document.getElementById('start-button');
+    const statusMessage = document.getElementById('status');
+
+    startButton.addEventListener('click', () => {
+      statusMessage.textContent = '開始ボタンの動作を確認しました。ゲーム本編は準備中です。';
+    });
+  </script>
+</body>
+</html>
