@@ -75,12 +75,12 @@
       list-style: none;
     }
     .hand {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
       width: 100%;
     }
     .cpu-hand {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
       width: 100%;
       min-height: 100px;
@@ -111,16 +111,26 @@
     #hand .card-stats, #cpu-hand .card-stats, #player-fighter .card-stats, #cpu-fighter .card-stats {
       display: none !important;
     }
+    .round-result { margin-top: 16px; padding: 12px; border: 1px solid #625575; border-radius: 12px; }
+    .round-result h3 { margin: 0 0 12px; }
+    .round-result table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.85rem; }
+    .round-result caption { font-size: 0.8rem; margin-bottom: 8px; color: #d8d4e4; }
+    .round-result th, .round-result td { padding: 8px 2px; border-bottom: 1px solid #625575; overflow-wrap: anywhere; }
+    .result-reason, .result-note { line-height: 1.8; overflow-wrap: anywhere; text-align: left; }
+    .result-note { font-size: 0.8rem; color: #d8d4e4; margin-bottom: 0; }
+    .match-score { margin: 0 0 16px; color: #ffcf89; font-weight: 700; line-height: 1.6; }
+    .card.used { opacity: 0.5; border-style: dashed; }
+    .used-label { margin-top: auto; color: #d8d4e4; font-size: 0.75rem; }
     .selection-label { margin-top: auto; color: #ffcf89; font-size: 0.8rem; }
-    /* 手札だけを細い4列に調整し、中央の出場カードの文字サイズは維持する。 */
+    /* 手札だけを3列に調整し、中央の出場カードの文字サイズは維持する。 */
     .hand .card, .cpu-hand .card { padding: 12px 4px; gap: 10px; border-radius: 8px; }
     .hand .card-name, .cpu-hand .card-name {
-      font-size: clamp(0.6875rem, 2.8vw, 1rem);
+      font-size: clamp(0.75rem, 3.2vw, 1rem);
       line-height: 1.5;
       white-space: normal;
       overflow-wrap: anywhere;
     }
-    .hand .card-profile, .cpu-hand .card-profile { font-size: clamp(0.625rem, 2.4vw, 0.85rem); line-height: 1.65; }
+    .hand .card-profile, .cpu-hand .card-profile { font-size: clamp(0.6875rem, 2.7vw, 0.85rem); line-height: 1.65; }
     .hand .selection-label { font-size: clamp(0.625rem, 2.1vw, 0.8rem); line-height: 1.6; }
     .card-back {
       display: flex;
@@ -207,8 +217,9 @@
       <button id="start-button" type="button">ゲーム開始</button>
     </section>
     <section id="hand-screen" aria-labelledby="hand-title" hidden>
+      <p id="match-score" class="match-score" role="status"></p>
       <h2 id="hand-title" tabindex="-1">CPUの手札</h2>
-      <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの公開手札4枚"></ul>
+      <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの公開手札3枚"></ul>
       <section id="battle-area" class="battle-area" aria-labelledby="battle-title">
         <h2 id="battle-title" tabindex="-1">バトルエリア</h2>
         <div class="battle-arena" data-attack-axis="y">
@@ -225,21 +236,33 @@
           </section>
         </div>
         <div class="actions">
-          <button id="return-button" type="button" hidden>手札に戻る</button>
+          <button id="return-button" type="button" hidden>次のラウンドへ</button>
         </div>
         <p id="battle-status" class="status" role="status"></p>
+        <section id="round-result" class="round-result" aria-labelledby="result-title" hidden>
+          <h3 id="result-title">ラウンドリザルト</h3>
+          <p id="result-probability"></p>
+          <table>
+            <caption>対戦したカードの能力値（差はPLAYER−CPU）</caption>
+            <thead><tr><th scope="col">能力</th><th scope="col">PLAYER</th><th scope="col">CPU</th><th scope="col">差</th></tr></thead>
+            <tbody id="result-stats"></tbody>
+          </table>
+          <p id="result-reason" class="result-reason"></p>
+          <p class="result-note">暫定ルール：6能力値を等しく合計し、PLAYER勝率＝50＋戦闘力差×0.5（5〜95%）。</p>
+        </section>
       </section>
       <h3>あなたの手札</h3>
-      <ul id="hand" class="hand" aria-label="あなたの手札4枚"></ul>
+      <ul id="hand" class="hand" aria-label="あなたの手札3枚"></ul>
       <div class="actions">
         <button id="fight-button" type="button" disabled>このキャラで戦う</button>
-        <button id="redeal-button" class="secondary" type="button">配り直す</button>
+        <button id="redeal-button" class="secondary" type="button">新しい試合</button>
       </div>
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=public-cpu-hand-1" defer></script>
-  <script src="./js/match.js?v=public-cpu-hand-1" defer></script>
-  <script src="./js/game.js?v=public-cpu-hand-1" defer></script>
+  <script src="./js/characters.js?v=best-of-three-1" defer></script>
+  <script src="./js/battle.js?v=best-of-three-1" defer></script>
+  <script src="./js/match.js?v=best-of-three-1" defer></script>
+  <script src="./js/game.js?v=best-of-three-1" defer></script>
 </body>
 </html>
