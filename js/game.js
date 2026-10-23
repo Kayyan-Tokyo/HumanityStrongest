@@ -163,7 +163,7 @@
       }
       get('result-stats').append(row);
     }
-    const commentary = window.HumanityBattle.createCommentary(decision);
+    const commentary = result.story;
     get('result-headline').textContent = commentary.headline;
     get('result-reason').textContent = commentary.body;
     get('round-result').hidden = false;

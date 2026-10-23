@@ -41,12 +41,14 @@ const context = vm.createContext({window: {scrollTo() {}}, Math: Object.create(M
   getElementById: id => { assert.ok(ids[id], `HTMLに ${id} が存在する`); return ids[id]; },
   createElement: tag => new Element(tag), querySelector: () => main, body: new Element('body')
 }});
-for (const file of ['js/characters.js', 'js/battle.js', 'js/match.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+for (const file of ['js/characters.js', 'js/battle.js', 'js/story.js', 'js/match.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
 const api = context.window.HumanityMatch;
 const originalDeal = api.deal;
 let currentMatch, dealCount = 0, nextWinner = 'player', firstRoll = 0;
 api.deal = data => { dealCount++; currentMatch = originalDeal(data, () => firstRoll); return currentMatch; };
-let draws=0;
+let draws=0, stories=0;
+const generateStory=context.window.HumanityStory.generateStory;
+context.window.HumanityStory.generateStory=result=>{stories++;assert.ok(result.winner);return generateStory(result);};
 const resolve=context.window.HumanityBattle.resolveRound;
 context.window.HumanityBattle.resolveRound=(p,c)=>resolve(p,c,()=>{draws++;return nextWinner==='player'?0:0.999999;});
 vm.runInContext(fs.readFileSync('js/game.js', 'utf8'), context);
@@ -89,15 +91,15 @@ function fight(winner){
   const before=currentMatch.rounds.length;
   const beforeDraws=draws;
   ids['fight-button'].click();
-  assert.equal(draws,beforeDraws+1);
+  assert.equal(draws,beforeDraws+1);assert.equal(stories,draws);
   assert.equal(ids['round-result'].hidden,false);
   const result=currentMatch.rounds.at(-1);
   assert.equal(ids['result-stats'].children.length,6);
-  assert.equal(ids['result-reason'].textContent,context.window.HumanityBattle.describeResult(result.decision));
+  assert.equal(ids['result-reason'].textContent,result.story.body);
   assert.equal(currentMatch.rounds.length,before+1);
   const front=ids['cpu-fighter'].children[0];
   for(let i=0;i<10;i++)ids['fight-button'].listeners.click();
-  assert.equal(currentMatch.rounds.length,before+1);assert.equal(ids['cpu-fighter'].children[0],front);assert.equal(draws,beforeDraws+1);
+  assert.equal(currentMatch.rounds.length,before+1);assert.equal(ids['cpu-fighter'].children[0],front);assert.equal(draws,beforeDraws+1);assert.equal(stories,draws);
   assert.ok(cards().every(c=>c.disabled));
   assert.ok(currentMatch.usedPlayerIds.includes(chosenId));
   assertNoStats();
