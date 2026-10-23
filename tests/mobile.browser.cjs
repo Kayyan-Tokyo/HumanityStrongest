@@ -82,8 +82,8 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
           topHand:rect('#cpu-hand'),arena:rect('.battle-arena'),bottomHand:rect('#hand'),
           direction:[document.querySelector('.battle-side--player').dataset.attackDirection,document.querySelector('.battle-side--cpu').dataset.attackDirection]};
       });
-      assert.ok(sides.player.right <= sides.vs.left && sides.vs.right <= sides.cpu.left);
-      assert.ok(Math.abs(sides.player.top - sides.cpu.top) < 1);
+      assert.ok(sides.cpu.bottom <= sides.vs.top && sides.vs.bottom <= sides.player.top);
+      assert.ok(Math.abs((sides.player.left+sides.player.right)/2 - (sides.cpu.left+sides.cpu.right)/2) < 1);
       assert.ok(sides.topHand.bottom <= sides.arena.top && sides.arena.bottom <= sides.bottomHand.top);
       const compactSpacing = await page.evaluate(() => {
         const battle = document.querySelector('#battle-area').getBoundingClientRect();
@@ -92,7 +92,7 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         return {afterBattle:handHeading.top-battle.bottom,beforeCards:cards.top-handHeading.bottom};
       });
       assert.ok(compactSpacing.afterBattle <= 16 && compactSpacing.beforeCards <= 12);
-      assert.deepEqual(sides.direction, ['right','left']);
+      assert.deepEqual(sides.direction, ['up','down']);
       await page.locator('#hand .card').first().click();
       const playerName = await page.locator('#hand .card').first().locator('.card-name').textContent();
       assert.equal(await page.locator('#player-fighter .card-name').textContent(), playerName);
@@ -116,9 +116,10 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       const revealedSides = await page.evaluate(() => {
         const player=document.querySelector('#player-fighter').getBoundingClientRect();
         const cpu=document.querySelector('#cpu-fighter').getBoundingClientRect();
-        return {left:player.right < cpu.left,sameRow:Math.abs(player.top-cpu.top)<1,overflow:document.documentElement.scrollWidth>innerWidth};
+        const vs=document.querySelector('.battle-arena > .vs').getBoundingClientRect();
+        return {vertical:cpu.bottom <= vs.top && vs.bottom <= player.top,centered:Math.abs((player.left+player.right)/2-(cpu.left+cpu.right)/2)<1,overflow:document.documentElement.scrollWidth>innerWidth};
       });
-      assert.deepEqual(revealedSides,{left:true,sameRow:true,overflow:false});
+      assert.deepEqual(revealedSides,{vertical:true,centered:true,overflow:false});
       if (process.env.SCREENSHOT_DIR && width === 375) {
         await page.locator('#cpu-fighter .fighter-card').evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
         fs.mkdirSync(process.env.SCREENSHOT_DIR, {recursive:true});
@@ -150,7 +151,7 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-hand.png'),fullPage:true});
       }
       assert.deepEqual(errors, []);
-      console.log(`PASS ${width}px: CPU横4枚が画面内、プレイヤー手札横4枚・長い名前も収まる、PLAYER左/VS/CPU右、能力値非表示、1回タップ公開/多重実行防止/戻る/再配布`);
+      console.log(`PASS ${width}px: CPU横4枚が画面内、プレイヤー手札横4枚・長い名前も収まる、CPU上/VS/PLAYER下、能力値非表示、1回タップ公開/多重実行防止/戻る/再配布`);
       await context.close();
     }
     // JSが一時的に読み込めない場合でもCPUカード4枚の領域はHTMLに存在する。
