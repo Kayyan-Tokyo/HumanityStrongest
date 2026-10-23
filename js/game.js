@@ -90,6 +90,7 @@
   get('start-button').addEventListener('click', () => {
     deal();
     document.querySelector('main').classList.add('playing');
+    document.body.classList.add('in-game');
     showScreen('hand-screen', 'hand-title');
   });
   get('redeal-button').addEventListener('click', () => {
