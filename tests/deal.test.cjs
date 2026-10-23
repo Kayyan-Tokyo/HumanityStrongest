@@ -44,8 +44,8 @@ const context = vm.createContext({window: {scrollTo() {}}, Math: Object.create(M
 for (const file of ['js/characters.js', 'js/battle.js', 'js/match.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
 const api = context.window.HumanityMatch;
 const originalDeal = api.deal;
-let currentMatch, dealCount = 0, nextWinner = 'player';
-api.deal = data => { dealCount++; currentMatch = originalDeal(data, () => 0); return currentMatch; };
+let currentMatch, dealCount = 0, nextWinner = 'player', firstRoll = 0;
+api.deal = data => { dealCount++; currentMatch = originalDeal(data, () => firstRoll); return currentMatch; };
 let draws=0;
 const resolve=context.window.HumanityBattle.resolveRound;
 context.window.HumanityBattle.resolveRound=(p,c)=>resolve(p,c,()=>{draws++;return nextWinner==='player'?0:0.999999;});
@@ -73,7 +73,19 @@ function fight(winner){
   const chosenId=card.dataset.characterId;
   card.click();
   assert.equal(ids['player-fighter'].querySelector('.card-name').textContent,currentMatch.playerHand.find(c=>c.id===chosenId).name);
-  assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length,1);
+  if(currentMatch.firstSide==='player'){
+    assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length,1);
+    assert.equal(currentMatch.cpuCard,null);
+    ids['confirm-button'].click();
+    assert.equal(currentMatch.phase,'ready');assert.equal(ids['fight-button'].disabled,false);
+    const locked=currentMatch.cpuCard;
+    ids['confirm-button'].listeners.click();assert.equal(currentMatch.cpuCard,locked);
+    assert.ok(cards().every(c=>c.disabled));
+    assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length,1);
+  }else{
+    assert.equal(ids['cpu-fighter'].querySelector('.card-name').textContent,currentMatch.cpuCard.name);
+    assert.equal(ids['confirm-button'].hidden,true);
+  }
   const before=currentMatch.rounds.length;
   const beforeDraws=draws;
   ids['fight-button'].click();
@@ -96,7 +108,9 @@ function next(){
   assert.equal(currentMatch,saved);assert.equal(ids['fight-button'].disabled,true);
   assert.equal(ids['round-result'].hidden,true);assert.equal(ids['result-stats'].children.length,0);
   for(const card of cards()) assert.equal(card.disabled,used.includes(card.dataset.characterId));
-  assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length,1);
+  if(currentMatch.firstSide==='player')assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length,1);
+  else assert.equal(ids['cpu-fighter'].querySelector('.card-name').textContent,currentMatch.cpuCard.name);
+  assert.match(ids['turn-status'].textContent,currentMatch.firstSide==='player'?/あなたが先攻/:/あなたが後攻/);
   const count=currentMatch.rounds.length;
   for(const card of cards().filter(c=>c.disabled))card.click();
   ids['fight-button'].listeners.click();assert.equal(currentMatch.rounds.length,count);
@@ -107,7 +121,7 @@ fight('player'); assert.equal(currentMatch.phase,'finished');assert.equal(curren
 assert.equal(currentMatch.rounds.length,3);assert.equal(ids['return-button'].hidden,true);
 ids['return-button'].listeners.click();assert.equal(currentMatch.rounds.length,3);
 assert.equal(dealCount,1);
-ids['redeal-button'].click();assert.equal(dealCount,2);assert.equal(currentMatch.usedPlayerIds.length,0);
+firstRoll=0.999999;ids['redeal-button'].click();assert.match(ids['turn-status'].textContent,/あなたが後攻/);assert.equal(dealCount,2);assert.equal(currentMatch.usedPlayerIds.length,0);
 fight('cpu');next();fight('cpu');
 assert.equal(currentMatch.phase,'finished');assert.equal(currentMatch.rounds.length,2);
 assert.equal(currentMatch.winner,'cpu');assert.equal(ids['return-button'].hidden,true);

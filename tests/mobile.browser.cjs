@@ -19,10 +19,10 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
       // 最長名を確実に配り、実際の計算式に境界乱数を注入して進行を決定的に検証。
       await page.evaluate(()=>{
         const deal=window.HumanityMatch.deal,resolve=window.HumanityBattle.resolveRound;
-        window.__outcomes=['player','cpu','player'];window.__roundDraws=0;
+        window.__outcomes=['player','cpu','player'];window.__roundDraws=0;window.__firstSide='cpu';
         window.HumanityMatch.deal=characters=>{
           const ranked=[...characters].sort((a,b)=>b.name.length-a.name.length);
-          return window.__match=deal(ranked,()=>0.999999);
+          return window.__match=deal(ranked,()=>window.__firstSide==='player'?0:0.999999);
         };
         window.HumanityBattle.resolveRound=(p,c)=>resolve(p,c,()=>{
           const winner=window.__outcomes[window.__roundDraws++];
@@ -55,8 +55,16 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         assert.equal(await page.locator('#round-result').isVisible(),false);
         assert.equal(await page.locator('#result-stats tr').count(),0);
         assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/STR|SPD|END|STK|GRP|SUB/);
-        assert.equal(await page.locator('#cpu-fighter .card-back').count(),1);
-        assert.equal(await page.locator('#cpu-fighter .card-name').count(),0);
+        const firstSide=await page.evaluate(()=>window.__match.firstSide);
+        assert.equal(firstSide,round===2?'player':'cpu');
+        assert.match(await page.locator('#turn-status').textContent(),firstSide==='player'?/あなたが先攻/:/あなたが後攻/);
+        if(firstSide==='player'){
+          assert.equal(await page.locator('#cpu-fighter .card-back').count(),1);
+          assert.equal(await page.locator('#cpu-fighter .card-name').count(),0);
+          assert.equal(await page.evaluate(()=>window.__match.cpuCard),null);
+        }else{
+          assert.equal(await page.locator('#cpu-fighter .card-name').textContent(),await page.evaluate(()=>window.__match.cpuCard.name));
+        }
         assert.equal(await page.locator('#fight-button').isDisabled(),true);
         await page.locator('#fight-button').evaluate(b=>b.dispatchEvent(new MouseEvent('click',{bubbles:true})));
         assert.equal(await page.evaluate(()=>window.__roundDraws),round-1);
@@ -64,7 +72,20 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         const playerName=await available.first().locator('.card-name').textContent();
         if(width<768)await available.first().tap();else await available.first().click();
         assert.equal(await page.locator('#player-fighter .card-name').textContent(),playerName);
+        if(firstSide==='player'){
+          assert.equal(await page.locator('#fight-button').isVisible(),false);
+          await page.locator('#fight-button').evaluate(b=>b.dispatchEvent(new MouseEvent('click',{bubbles:true})));
+          assert.equal(await page.evaluate(()=>window.__roundDraws),round-1);
+          if(width<768)await page.locator('#confirm-button').tap();else await page.locator('#confirm-button').click();
+          assert.equal(await page.locator('#hand .card:disabled').count(),3);
+          assert.equal(await page.locator('#cpu-fighter .card-back').count(),1);
+          const locked=await page.evaluate(()=>window.__match.cpuCard.id);
+          await page.locator('#confirm-button').evaluate(b=>{for(let i=0;i<10;i++)b.dispatchEvent(new MouseEvent('click',{bubbles:true}));});
+          assert.equal(await page.evaluate(()=>window.__match.cpuCard.id),locked);
+          assert.equal(await page.locator('#fight-button').isDisabled(),false);
+        }
         const fight=page.locator('#fight-button');if(width<768)await fight.tap();else await fight.click();
+        assert.match(await page.locator('#turn-status').textContent(),/でした/);
         assert.equal(await page.locator('#round-result').isVisible(),true);assert.equal(await page.locator('#result-stats tr').count(),6);
         assert.equal(await page.locator('#hand .used').count(),round);assert.equal(await page.locator('#cpu-hand .used').count(),round);
         assert.equal(await page.locator('#hand .card:disabled').count(),3);
@@ -106,11 +127,13 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
       }
       assert.match(await page.locator('#match-score').textContent(),/試合終了.*あなた 2勝.*CPU 1勝/);
       assert.equal(await page.locator('#return-button').isVisible(),false);
-      await page.evaluate(()=>{window.__outcomes=['cpu','cpu'];window.__roundDraws=0;});
+      await page.evaluate(()=>{window.__outcomes=['cpu','cpu'];window.__roundDraws=0;window.__firstSide='player';});
       await page.getByRole('button',{name:'新しい試合',exact:true}).click();
       assert.equal(await page.locator('#hand .used').count(),0);
       for(let round=1;round<=2;round++){
-        await page.locator('#hand .card:not(:disabled)').first().click();await page.locator('#fight-button').click();
+        await page.locator('#hand .card:not(:disabled)').first().click();
+        if(await page.locator('#confirm-button').isVisible())await page.locator('#confirm-button').click();
+        await page.locator('#fight-button').click();
         if(round===1)await page.getByRole('button',{name:'次のラウンドへ',exact:true}).click();
       }
       assert.match(await page.locator('#match-score').textContent(),/試合終了.*あなた 0勝.*CPU 2勝/);
@@ -118,7 +141,7 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
       assert.equal(await page.locator('#return-button').isVisible(),false);
       assert.equal(await page.locator('#fight-button').isDisabled(),true);
       assert.deepEqual(errors,[]);
-      console.log(`PASS ${width}px: 公開手札3枚・縦配置・事前能力非表示・結果6能力/勝率/理由・抽選1回・再使用禁止・3戦決着/2連勝終了`);
+      console.log(`PASS ${width}px: 先攻/後攻・順序どおりの公開・公開手札3枚・縦配置・事前能力非表示・結果6能力/勝率/理由・抽選1回・再使用禁止・3戦決着/2連勝終了`);
       await context.close();
     }
   }finally{await browser.close();}
