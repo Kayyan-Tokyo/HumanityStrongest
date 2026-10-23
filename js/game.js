@@ -87,10 +87,13 @@
     fightButton.disabled = true;
     handList.replaceChildren();
     get('cpu-hand').replaceChildren();
-    // 裏面にはID・プロフィール・能力値を一切埋め込まない。
-    for (let i = 0; i < match.cpuHand.length; i++) {
+    // 手札は公開するが、CPUの出場者を示す印・属性・イベントは付けない。
+    for (const character of match.cpuHand) {
       const item = document.createElement('li');
-      item.append(cardBack(`CPUの裏向きカード${i + 1}`));
+      const card = document.createElement('article');
+      card.className = 'card';
+      profileContent(card, character);
+      item.append(card);
       get('cpu-hand').append(item);
     }
     for (const character of match.playerHand) {

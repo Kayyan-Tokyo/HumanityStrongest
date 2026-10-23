@@ -31,7 +31,13 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       // 表示検証では長い名前の4人を確実に配る。抽選のランダム性はdeal.test.cjsで検証する。
       await page.evaluate(() => {
         const ranked = [...window.CHARACTERS].sort((a,b) => b.name.length - a.name.length);
-        window.HumanityMatch.deal = () => ({playerHand:ranked.slice(0,4),cpuHand:ranked.slice(4,8),cpuCard:ranked[4]});
+        let deals = 0;
+        window.HumanityMatch.deal = () => {
+          const swap = deals++ % 2 === 1;
+          const playerHand = swap ? ranked.slice(4,8) : ranked.slice(0,4);
+          const cpuHand = swap ? ranked.slice(0,4) : ranked.slice(4,8);
+          return {playerHand,cpuHand,cpuCard:cpuHand[0]};
+        };
       });
       await page.getByRole('button', {name: 'ゲーム開始', exact: true}).click();
       assert.doesNotMatch(await page.locator('#hand-screen').innerText(), /あなたのカードを選ぶと左側に表示されます。|カードを1枚選んでください。能力値は非公開です。|キャラクターデータ v1/);
@@ -42,7 +48,7 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       const emptyStatus = await page.locator('#battle-status').boundingBox();
       assert.equal(emptyStatus.height, 0);
       const measure = await page.evaluate(() => {
-        const backs = [...document.querySelectorAll('#cpu-hand .card-back')].map(el => {
+        const backs = [...document.querySelectorAll('#cpu-hand .card')].map(el => {
           const r = el.getBoundingClientRect();
           return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};
         });
@@ -50,9 +56,9 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
           const r = el.getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,width:r.width,height:r.height};
         });
         return {backs,player,overflow:document.documentElement.scrollWidth > innerWidth,
-          statsVisible:/STR|SPD|END|STK|GRP|SUB/.test(document.querySelector('#hand').innerText),
-          contentFits:[...document.querySelectorAll('#hand .card-name, #hand .card-profile, #hand .selection-label')].every(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1),
-          handFits:document.querySelector('#hand').scrollWidth <= document.querySelector('#hand').clientWidth,
+          statsVisible:/STR|SPD|END|STK|GRP|SUB/.test(document.querySelector('#hand-screen').innerText),
+          contentFits:[...document.querySelectorAll('#hand .card-name, #hand .card-profile, #hand .selection-label, #cpu-hand .card-name, #cpu-hand .card-profile')].every(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1),
+          handFits:['#hand','#cpu-hand'].every(selector => {const el=document.querySelector(selector);return el.scrollWidth <= el.clientWidth;}),
           profileCount:document.querySelectorAll('#hand .card-profile').length,
           columns:getComputedStyle(document.querySelector('#hand')).gridTemplateColumns.split(' ').length,
           statsRetained:window.CHARACTERS.every(c => Object.keys(c.stats).length === 6)};
@@ -74,6 +80,14 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
           card.querySelector('.card-profile').textContent === `${character.age}歳 / ${character.height}cm / ${character.weight}kg`;
       }));
       assert.equal(cardsMatchData, true);
+      const cpuProfiles = await page.locator('#cpu-hand .card').evaluateAll(cards => cards.every(card => {
+        const character = window.CHARACTERS.find(c => c.name === card.querySelector('.card-name').textContent);
+        return character && card.querySelector('.card-profile').textContent === `${character.age}歳 / ${character.height}cm / ${character.weight}kg` &&
+          card.children.length === 2 && card.tagName === 'ARTICLE' && Object.keys(card.dataset).length === 0 && !card.hasAttribute('aria-pressed');
+      }));
+      assert.equal(cpuProfiles, true);
+      assert.equal(await page.locator('#cpu-hand button, #cpu-hand .card-back').count(), 0);
+      assert.equal(await page.locator('#cpu-fighter .card-name').count(), 0);
       assert.equal(measure.statsRetained, true);
       const handIds = await page.locator('#hand .card').evaluateAll(cards => cards.map(c => c.dataset.characterId));
       const sides = await page.evaluate(() => {
@@ -108,7 +122,7 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         return document.querySelector('#cpu-fighter').firstElementChild === front;
       });
       assert.equal(duplicateRejected,true);
-      assert.equal(await page.locator('#cpu-hand .card-back:visible').count(), 4);
+      assert.equal(await page.locator('#cpu-hand .card:visible').count(), 4);
       assert.equal(await page.locator('#hand .card:visible').count(), 4);
       assert.equal(await page.locator('#hand .card:disabled').count(), 4);
       const cpuName = await page.locator('#cpu-fighter .card-name').textContent();
@@ -137,12 +151,23 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         const legacy = document.createElement('span');
         legacy.className = 'card-stats'; legacy.textContent = 'STR 99 SPD 99 END 99 STK 99 GRP 99 SUB 99';
         document.querySelector('#hand .card').append(legacy);
+        document.querySelector('#cpu-hand .card').append(legacy.cloneNode(true));
       });
       assert.equal(await page.locator('#hand .card-stats').isVisible(), false);
+      assert.equal(await page.locator('#cpu-hand .card-stats').isVisible(), false);
+      assert.doesNotMatch(await page.locator('#cpu-hand').ariaSnapshot(), /STR|SPD|END|STK|GRP|SUB/);
       assert.doesNotMatch(await page.locator('#hand').innerText(), /STR|SPD|END|STK|GRP|SUB/);
       assert.doesNotMatch(await page.locator('#hand').ariaSnapshot(), /STR|SPD|END|STK|GRP|SUB/);
       await page.getByRole('button', {name:'配り直す',exact:true}).click();
-      assert.equal(await page.locator('#cpu-hand .card-back:visible').count(), 4);
+      const cpuFitsAfterRedeal = await page.locator('#cpu-hand .card').evaluateAll(cards => cards.every(card => {
+        const r = card.getBoundingClientRect();
+        return r.left >= 0 && r.right <= innerWidth && Math.abs(r.top-cards[0].getBoundingClientRect().top)<1 &&
+          [...card.children].every(child => child.scrollWidth <= child.clientWidth && child.scrollHeight <= child.clientHeight+1);
+      }));
+      assert.equal(cpuFitsAfterRedeal,true);
+      assert.equal(await page.locator('#cpu-fighter .card-name').count(),0);
+      assert.equal(await page.locator('#cpu-fighter .card-back').count(),1);
+      assert.equal(await page.locator('#cpu-hand .card:visible').count(), 4);
       assert.equal(await page.locator('#hand .card[aria-pressed="true"]').count(), 0);
       assert.equal(await page.locator('#battle-status').textContent(), '');
       assert.equal((await page.locator('#battle-status').boundingBox()).height, 0);
@@ -151,15 +176,8 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-hand.png'),fullPage:true});
       }
       assert.deepEqual(errors, []);
-      console.log(`PASS ${width}px: CPU横4枚が画面内、プレイヤー手札横4枚・長い名前も収まる、CPU上/VS/PLAYER下、能力値非表示、1回タップ公開/多重実行防止/戻る/再配布`);
+      console.log(`PASS ${width}px: CPU表向き横4枚・出場者は開始時公開、プレイヤー手札横4枚・長い名前も収まる、CPU上/VS/PLAYER下、能力値非表示、1回タップ公開/多重実行防止/戻る/再配布`);
       await context.close();
     }
-    // JSが一時的に読み込めない場合でもCPUカード4枚の領域はHTMLに存在する。
-    const page = await browser.newPage({viewport:{width:320,height:812}});
-    await page.setContent(html.replace(/<script[^>]*><\/script>/g, ''));
-    await page.evaluate(() => {document.querySelector('#title-screen').hidden = true; document.querySelector('#hand-screen').hidden = false;});
-    assert.equal(await page.locator('#cpu-hand .card-back:visible').count(), 4);
-    console.log('PASS: JavaScript未読込時にもCPU裏面4枚を表示');
-    await page.close();
   } finally { await browser.close(); }
 })().catch(error => {console.error(error);process.exitCode=1;});
