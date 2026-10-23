@@ -75,7 +75,11 @@
       margin: 20px 0;
       list-style: none;
     }
-    .hand { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hand {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+    }
     .cpu-hand {
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
@@ -109,6 +113,16 @@
       display: none !important;
     }
     .selection-label { margin-top: auto; color: #ffcf89; font-size: 0.8rem; }
+    /* 手札だけを細い4列に調整し、中央の出場カードの文字サイズは維持する。 */
+    .hand .card { padding: 12px 4px; gap: 10px; border-radius: 8px; }
+    .hand .card-name {
+      font-size: clamp(0.6875rem, 2.8vw, 1rem);
+      line-height: 1.5;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    .hand .card-profile { font-size: clamp(0.625rem, 2.4vw, 0.85rem); line-height: 1.65; }
+    .hand .selection-label { font-size: clamp(0.625rem, 2.1vw, 0.8rem); line-height: 1.6; }
     .card-back {
       display: flex;
       flex-direction: column;
@@ -166,8 +180,12 @@
     }
     @media (min-width: 600px) {
       .card { padding: 24px; }
-      .cpu-hand { gap: 16px; }
+      .hand, .cpu-hand { gap: 16px; }
+      .hand .card { padding: 16px 10px; gap: 12px; }
       .cpu-hand .card-back { min-height: 128px; }
+    }
+    @media (max-width: 599px) {
+      body.in-game { padding: 16px 12px; }
     }
 
     .status {
