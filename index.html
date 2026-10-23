@@ -118,6 +118,7 @@
     .round-result caption { font-size: 0.8rem; margin-bottom: 8px; color: #d8d4e4; }
     .round-result th, .round-result td { padding: 8px 2px; border-bottom: 1px solid #625575; overflow-wrap: anywhere; }
     .result-reason { font-size: 1rem; line-height: 1.9; overflow-wrap: anywhere; text-align: left; margin: 12px 0 0; }
+    .turn-status { margin: 0 0 16px; padding: 12px; border: 1px solid #ffbf60; border-radius: 8px; color: #ffcf89; line-height: 1.7; font-weight: 700; }
     .match-score { margin: 0 0 16px; color: #ffcf89; font-weight: 700; line-height: 1.6; }
     .card.used { opacity: 0.5; border-style: dashed; }
     .used-label { margin-top: auto; color: #d8d4e4; font-size: 0.75rem; }
@@ -218,6 +219,7 @@
     </section>
     <section id="hand-screen" aria-labelledby="hand-title" hidden>
       <p id="match-score" class="match-score" role="status"></p>
+      <p id="turn-status" class="turn-status" role="status"></p>
       <h2 id="hand-title" tabindex="-1">CPUの手札</h2>
       <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの公開手札3枚"></ul>
       <section id="battle-area" class="battle-area" aria-labelledby="battle-title">
@@ -254,15 +256,16 @@
       <h3>あなたの手札</h3>
       <ul id="hand" class="hand" aria-label="あなたの手札3枚"></ul>
       <div class="actions">
+        <button id="confirm-button" type="button" hidden disabled>このカードを公開する</button>
         <button id="fight-button" type="button" disabled>このキャラで戦う</button>
         <button id="redeal-button" class="secondary" type="button">新しい試合</button>
       </div>
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=friendly-result-1" defer></script>
-  <script src="./js/battle.js?v=friendly-result-1" defer></script>
-  <script src="./js/match.js?v=friendly-result-1" defer></script>
-  <script src="./js/game.js?v=friendly-result-1" defer></script>
+  <script src="./js/characters.js?v=turn-order-1" defer></script>
+  <script src="./js/battle.js?v=turn-order-1" defer></script>
+  <script src="./js/match.js?v=turn-order-1" defer></script>
+  <script src="./js/game.js?v=turn-order-1" defer></script>
 </body>
 </html>

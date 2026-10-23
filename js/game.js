@@ -66,13 +66,34 @@
         item.append(card);
       }
     }
-    fightButton.disabled = stage !== 'hand' || !selectedId || match.usedPlayerIds.includes(selectedId);
-    get('redeal-button').disabled = stage === 'battling' || stage === 'result';
+    const needsCommit = match.firstSide === 'player' && stage === 'hand';
+    get('confirm-button').hidden = !needsCommit;
+    get('confirm-button').disabled = !needsCommit || !selectedId;
+    fightButton.hidden = needsCommit;
+    fightButton.disabled = !((stage === 'hand' && match.firstSide === 'cpu') || stage === 'ready') || !selectedId || match.usedPlayerIds.includes(selectedId);
+    get('redeal-button').disabled = stage === 'battling' || stage === 'result' || stage === 'ready';
   }
 
   function renderScore() {
     const prefix = match.phase === 'finished' ? '試合終了' : `第${match.round}ラウンド / 最大3`;
     get('match-score').textContent = `${prefix}　あなた ${match.playerWins}勝 — CPU ${match.cpuWins}勝`;
+  }
+
+  function renderTurn() {
+    const playerFirst = match.firstSide === 'player';
+    get('turn-status').textContent = playerFirst
+      ? 'あなたが先攻。カードを選び、先に公開してください。'
+      : 'あなたが後攻。CPUの公開カードを見てから選べます。';
+    if (playerFirst) concealCpuFighter();
+    else showCpuFighter(match.cpuCard, false);
+  }
+
+  function showCpuFighter(character, animate = true) {
+    get('cpu-fighter').classList.remove('revealed');
+    const front = document.createElement('div'); front.className = 'card fighter-card';
+    profileContent(front, character);
+    get('cpu-fighter').replaceChildren(front);
+    if (animate) get('cpu-fighter').classList.add('revealed');
   }
 
   function selectCard(character) {
@@ -86,7 +107,7 @@
   function newMatch() {
     match = window.HumanityMatch.deal(window.CHARACTERS);
     selectedId = null; stage = 'hand';
-    renderHands(); renderScore(); renderPlayerFighter(); concealCpuFighter();
+    renderHands(); renderScore(); renderPlayerFighter(); renderTurn();
     get('return-button').hidden = true;
     get('battle-status').textContent = '';
     clearResult();
@@ -94,16 +115,15 @@
   }
 
   function startBattle() {
-    if (stage !== 'hand' || !selectedId || match.usedPlayerIds.includes(selectedId)) return;
+    if (!((stage === 'hand' && match.firstSide === 'cpu') || stage === 'ready') || !selectedId || match.usedPlayerIds.includes(selectedId)) return;
     stage = 'battling';
     fightButton.disabled = true;
+    get('confirm-button').disabled = true;
     for (const card of handList.querySelectorAll('.card')) card.disabled = true;
     get('redeal-button').disabled = true;
     // 進行・カード消費と判定関数を分離。将来のバトル演出もこの入口へ接続する。
     const result = window.HumanityMatch.playRound(match, selectedId);
-    const front = document.createElement('div'); front.className = 'card fighter-card';
-    profileContent(front, result.cpuCard);
-    get('cpu-fighter').replaceChildren(front); get('cpu-fighter').classList.add('revealed');
+    showCpuFighter(result.cpuCard, match.firstSide === 'player');
     const roundText = result.winner === 'player' ? 'あなたの勝利' : 'あなたの敗北';
     if (match.phase === 'finished') {
       stage = 'finished'; get('return-button').hidden = true;
@@ -114,6 +134,7 @@
       get('battle-status').textContent = `第${result.round}ラウンド：${roundText}。次は残りの手札から選んでください。`;
     }
     renderHands(); renderScore(); renderResult(result);
+    get('turn-status').textContent = `第${result.round}ラウンドは、あなたが${match.firstSide === 'player' ? '先攻' : '後攻'}でした。`;
     get('status').textContent = match.phase === 'finished' ? '新しい試合で遊べます。' : '使用済みカードはこの試合では使えません。';
     get('battle-title').focus({ preventScroll: true });
     get('battle-area').scrollIntoView({ block: 'start', behavior: 'instant' });
@@ -156,15 +177,26 @@
   get('redeal-button').addEventListener('click', () => {
     if (stage === 'hand' || stage === 'finished') newMatch();
   });
+  get('confirm-button').addEventListener('click', () => {
+    if (stage !== 'hand' || match.firstSide !== 'player' || !selectedId) return;
+    window.HumanityMatch.commitPlayerCard(match, selectedId);
+    stage = 'ready';
+    renderHands();
+    get('turn-status').textContent = 'あなたが先攻。公開カードを確定しました。CPUの選択は対戦開始時に公開されます。';
+    get('status').textContent = '「このキャラで戦う」で対戦を始めましょう。';
+    fightButton.focus({ preventScroll: true });
+  });
   fightButton.addEventListener('click', startBattle);
   get('return-button').addEventListener('click', () => {
     if (stage !== 'result') return;
     window.HumanityMatch.nextRound(match);
     stage = 'hand'; selectedId = null;
-    renderHands(); renderScore(); renderPlayerFighter(); concealCpuFighter();
+    renderHands(); renderScore(); renderPlayerFighter(); renderTurn();
     get('return-button').hidden = true; get('battle-status').textContent = ''; clearResult();
     get('status').textContent = '残りの手札からカードを1枚選んでください。';
     const card = [...handList.querySelectorAll('.card')].find(c => !c.disabled);
-    card.focus({ preventScroll: true }); card.scrollIntoView({ block: 'center', behavior: 'instant' });
+    card.focus({ preventScroll: true });
+    if (match.firstSide === 'cpu') get('battle-area').scrollIntoView({ block: 'start', behavior: 'instant' });
+    else card.scrollIntoView({ block: 'center', behavior: 'instant' });
   });
 })();
