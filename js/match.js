@@ -71,7 +71,9 @@
       throw error;
     }
     const winner = decision.winner;
-    const result = Object.freeze({ round: match.round, playerCard, cpuCard, winner, decision, firstSide: match.firstSide });
+    const outcome = { round: match.round, playerCard, cpuCard, winner, decision, firstSide: match.firstSide };
+    const story = window.HumanityStory.generateStory(outcome);
+    const result = Object.freeze({ ...outcome, story });
     match.usedPlayerIds.push(playerCard.id);
     match.usedCpuIds.push(cpuCard.id);
     match.rounds.push(result);
