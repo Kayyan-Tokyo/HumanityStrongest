@@ -54,12 +54,38 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
       assert.ok(measure.player[2].y > measure.player[0].y);
       assert.equal(measure.statsRetained, true);
       const handIds = await page.locator('#hand .card').evaluateAll(cards => cards.map(c => c.dataset.characterId));
+      const sides = await page.evaluate(() => {
+        const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}; };
+        return {player:rect('#player-fighter'),cpu:rect('#cpu-fighter'),vs:rect('.battle-arena > .vs'),
+          topHand:rect('#cpu-hand'),arena:rect('.battle-arena'),bottomHand:rect('#hand'),
+          direction:[document.querySelector('.battle-side--player').dataset.attackDirection,document.querySelector('.battle-side--cpu').dataset.attackDirection]};
+      });
+      assert.ok(sides.player.right <= sides.vs.left && sides.vs.right <= sides.cpu.left);
+      assert.ok(Math.abs(sides.player.top - sides.cpu.top) < 1);
+      assert.ok(sides.topHand.bottom <= sides.arena.top && sides.arena.bottom <= sides.bottomHand.top);
+      assert.deepEqual(sides.direction, ['right','left']);
       await page.locator('#hand .card').first().click();
+      const playerName = await page.locator('#hand .card').first().locator('.card-name').textContent();
+      assert.equal(await page.locator('#player-fighter .card-name').textContent(), playerName);
       await page.getByRole('button', {name:'このキャラで戦う',exact:true}).click();
       assert.equal(await page.locator('#cpu-fighter .card-back').count(), 1);
+      assert.equal(await page.locator('#cpu-hand .card-back:visible').count(), 4);
+      assert.equal(await page.locator('#hand .card:visible').count(), 4);
+      assert.equal(await page.locator('#hand .card:disabled').count(), 4);
       await page.getByRole('button', {name:'バトル開始',exact:true}).click();
       const cpuName = await page.locator('#cpu-fighter .card-name').textContent();
       assert.ok(cpuName);
+      const revealedSides = await page.evaluate(() => {
+        const player=document.querySelector('#player-fighter').getBoundingClientRect();
+        const cpu=document.querySelector('#cpu-fighter').getBoundingClientRect();
+        return {left:player.right < cpu.left,sameRow:Math.abs(player.top-cpu.top)<1,overflow:document.documentElement.scrollWidth>innerWidth};
+      });
+      assert.deepEqual(revealedSides,{left:true,sameRow:true,overflow:false});
+      if (process.env.SCREENSHOT_DIR && width === 375) {
+        await page.locator('#cpu-fighter .fighter-card').evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
+        fs.mkdirSync(process.env.SCREENSHOT_DIR, {recursive:true});
+        await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-battle.png'),fullPage:true});
+      }
       assert.doesNotMatch(await page.locator('#preparation-screen').innerText(), /STR|SPD|END|STK|GRP|SUB/);
       await page.getByRole('button', {name:'手札に戻る',exact:true}).click();
       assert.deepEqual(await page.locator('#hand .card').evaluateAll(cards => cards.map(c => c.dataset.characterId)), handIds);
@@ -85,7 +111,7 @@ const withScripts = html.replace(/<script src="([^"]+)" defer><\/script>/g, (_, 
         await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR, 'mobile-hand.png'),fullPage:true});
       }
       assert.deepEqual(errors, []);
-      console.log(`PASS ${width}px: CPU横4枚が画面内、手札2×2、能力値非表示、対戦準備/公開/戻る/再配布`);
+      console.log(`PASS ${width}px: CPU横4枚が画面内、手札2×2、PLAYER左/VS/CPU右、能力値非表示、対戦準備/公開/戻る/再配布`);
       await context.close();
     }
     // JSが一時的に読み込めない場合でもCPUカード4枚の領域はHTMLに存在する。
