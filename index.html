@@ -112,12 +112,12 @@
       display: none !important;
     }
     .round-result { margin-top: 16px; padding: 12px; border: 1px solid #625575; border-radius: 12px; }
+    .result-headline { color: #ffcf89; font-size: 1.1rem; line-height: 1.6; margin: 20px 0 8px; }
     .round-result h3 { margin: 0 0 12px; }
     .round-result table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.85rem; }
     .round-result caption { font-size: 0.8rem; margin-bottom: 8px; color: #d8d4e4; }
     .round-result th, .round-result td { padding: 8px 2px; border-bottom: 1px solid #625575; overflow-wrap: anywhere; }
-    .result-reason, .result-note { line-height: 1.8; overflow-wrap: anywhere; text-align: left; }
-    .result-note { font-size: 0.8rem; color: #d8d4e4; margin-bottom: 0; }
+    .result-reason { font-size: 1rem; line-height: 1.9; overflow-wrap: anywhere; text-align: left; margin: 12px 0 0; }
     .match-score { margin: 0 0 16px; color: #ffcf89; font-weight: 700; line-height: 1.6; }
     .card.used { opacity: 0.5; border-style: dashed; }
     .used-label { margin-top: auto; color: #d8d4e4; font-size: 0.75rem; }
@@ -231,7 +231,7 @@
           </section>
           <div class="vs" aria-label="対戦">VS</div>
           <section class="battle-side battle-side--player" data-attack-direction="up" aria-labelledby="player-label">
-            <h3 id="player-label">PLAYER</h3>
+            <h3 id="player-label">あなた</h3>
             <div id="player-fighter" class="card fighter-card fighter-slot"><span class="empty-fighter">手札からカードを選んでください</span></div>
           </section>
         </div>
@@ -240,15 +240,15 @@
         </div>
         <p id="battle-status" class="status" role="status"></p>
         <section id="round-result" class="round-result" aria-labelledby="result-title" hidden>
-          <h3 id="result-title">ラウンドリザルト</h3>
+          <h3 id="result-title">ラウンドの結果</h3>
           <p id="result-probability"></p>
           <table>
-            <caption>対戦したカードの能力値（差はPLAYER−CPU）</caption>
-            <thead><tr><th scope="col">能力</th><th scope="col">PLAYER</th><th scope="col">CPU</th><th scope="col">差</th></tr></thead>
+            <caption>ふたりの能力を見くらべよう</caption>
+            <thead><tr><th scope="col">能力</th><th scope="col">あなた</th><th scope="col">CPU</th></tr></thead>
             <tbody id="result-stats"></tbody>
           </table>
+          <h4 id="result-headline" class="result-headline"></h4>
           <p id="result-reason" class="result-reason"></p>
-          <p class="result-note">暫定ルール：6能力値を等しく合計し、PLAYER勝率＝50＋戦闘力差×0.5（5〜95%）。</p>
         </section>
       </section>
       <h3>あなたの手札</h3>
@@ -260,9 +260,9 @@
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=best-of-three-1" defer></script>
-  <script src="./js/battle.js?v=best-of-three-1" defer></script>
-  <script src="./js/match.js?v=best-of-three-1" defer></script>
-  <script src="./js/game.js?v=best-of-three-1" defer></script>
+  <script src="./js/characters.js?v=friendly-result-1" defer></script>
+  <script src="./js/battle.js?v=friendly-result-1" defer></script>
+  <script src="./js/match.js?v=friendly-result-1" defer></script>
+  <script src="./js/game.js?v=friendly-result-1" defer></script>
 </body>
 </html>
