@@ -1,0 +1,26 @@
+{
+  "spartan_idle.png": {
+    "nativeFacing": 1,
+    "sha256": "479a74e987417e3404ea82230b336965a17c3fa119565551366ad9cf3ec685da"
+  },
+  "spartan_walk_4f.png": {
+    "nativeFacing": 1,
+    "sha256": "dc8b5393ade0f298502757f0124055f16b0d03f0273ab60fd465a2f0e583abac"
+  },
+  "spartan_thrust_4f.png": {
+    "nativeFacing": 1,
+    "sha256": "68a0a91d81589452a1f33c7e5b824ec7f793f69e0a5218445b2ca6858eb538a7"
+  },
+  "sumo_idle.png": {
+    "nativeFacing": -1,
+    "sha256": "a6292658f57c2a7a555f7099a0dbc2c4c9751668f3524f19be810232e02ee8ed"
+  },
+  "sumo_walk_4f.png": {
+    "nativeFacing": 1,
+    "sha256": "6ed8d0c047bf95d0959c66e40fccb5d5fc84f387545cdcdb20f12c5592f9066d"
+  },
+  "sumo_slap_4f.png": {
+    "nativeFacing": 1,
+    "sha256": "ff947efa202b3c90cf5e42b864d184e899407ec83a2e692d1652cd63023c8b90"
+  }
+}

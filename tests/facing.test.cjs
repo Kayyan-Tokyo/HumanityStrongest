@@ -1,7 +1,9 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const math=Object.create(Math);math.random=()=>{throw Error('乱数消費');};
 const ctx=vm.createContext({window:{},Math:math,setTimeout,clearTimeout,Image:class{set src(value){this.srcValue=value;this.onload();}}});
-vm.runInContext(fs.readFileSync('js/pixel-battle.js','utf8'),ctx);const api=ctx.window.HumanityPixelBattle;
+vm.runInContext(fs.readFileSync(process.env.PIXEL_SCRIPT || 'js/pixel-battle.js','utf8'),ctx);const api=ctx.window.HumanityPixelBattle;
+const oracle=JSON.parse(fs.readFileSync('tests/fixtures/sprite-native-facing.json','utf8'));
+for(const [name,entry]of Object.entries(oracle))assert.equal(require('crypto').createHash('sha256').update(fs.readFileSync('assets/characters/'+name)).digest('hex'),entry.sha256);
 const log=[];const context=new Proxy({drawImage:(image,...args)=>log.push({image,args,matrix:[...matrix]}),scale:(x,y)=>{matrix[0]*=x;matrix[1]*=y;},translate:(x,y)=>{matrix[2]+=x;matrix[3]+=y;},save:()=>{stack.push([...matrix]);},restore:()=>{matrix=stack.pop();}}, {get:(o,p)=>p in o?o[p]:()=>{}});
 let matrix=[1,1,0,0],stack=[];
 const canvas={dataset:{},getContext:()=>context};
@@ -9,9 +11,9 @@ for(const swapped of [false,true])for(const pose of ['idle','walk','attack','dam
  const scene=api.sampleScene(3500,'player');scene.time+=velocity===-1?1:2;
  scene.player={...scene.player,x:swapped?235:85,pose,attackTime:250,direction:velocity,moving:true};
  scene.cpu={...scene.cpu,x:swapped?85:235,pose,attackTime:250,direction:-velocity,moving:true};
- api.drawScene(canvas,scene);
+ log.length=0; api.drawScene(canvas,scene);
  assert.equal(canvas.dataset.playerFacing,swapped?'-1':'1');assert.equal(canvas.dataset.cpuFacing,swapped?'1':'-1');
- assert.equal(canvas.dataset.playerFlipped,String(swapped));assert.equal(canvas.dataset.cpuFlipped,String(!swapped));
+ for(const draw of log){const name=draw.image.srcValue.split('/').pop();const isPlayer=name.startsWith('spartan');const expected=isPlayer?(swapped?-1:1):(swapped?1:-1);assert.equal(Math.sign(draw.matrix[0])*oracle[name].nativeFacing,expected,`${name}: 実画像の元向き×Canvas反転が相手を向く`);}
 }
 // 左右交換→同座標→同座標を保つ。重なった瞬間に向きを再計算しない。
 const scene=api.sampleScene(6000,'player');scene.player.x=235;scene.cpu.x=85;scene.player.pose=scene.cpu.pose='idle';api.drawScene(canvas,scene);

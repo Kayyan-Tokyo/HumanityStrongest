@@ -6,7 +6,7 @@
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
     player: { sourceFacing:1, src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, hitOffset:[94,48], anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, referenceHeight:144, anchors:[[80.5,142],[87,142],[81.5,145],[85.5,144]], frames:[[31,34,153,142],[202,35,160,142],[414,14,150,145],[593,16,160,144]] } } },
-    cpu: { sourceFacing:1, src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{ walk:{ src:'./assets/characters/sumo_walk_4f.png', fps:6, anchor:[160,316], referenceHeight:300, frames:[[0,0,320,336],[320,0,320,336],[640,0,320,336],[960,0,320,336]] }, attack:{ src:'./assets/characters/sumo_slap_4f.png', once:true, duration:500, hitOffset:[61,47], anchor:[256,476], referenceHeight:458, frames:[[0,0,704,496],[704,0,704,496],[1408,0,704,496],[2112,0,704,496]] } } }
+    cpu: { sourceFacing:-1, src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{ walk:{ src:'./assets/characters/sumo_walk_4f.png', sourceFacing:1, fps:6, anchor:[160,316], referenceHeight:300, frames:[[0,0,320,336],[320,0,320,336],[640,0,320,336],[960,0,320,336]] }, attack:{ src:'./assets/characters/sumo_slap_4f.png', sourceFacing:1, once:true, duration:500, hitOffset:[61,47], anchor:[256,476], referenceHeight:458, frames:[[0,0,704,496],[704,0,704,496],[1408,0,704,496],[2112,0,704,496]] } } }
   };
   // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
   const LAYOUT = { spriteScale:1.35, separation:18, edgePadding:8 };
@@ -34,6 +34,17 @@
     image.onerror = () => { clearTimeout(timer); resolve(); };
     image.src = src;
   })));
+  // 画像の元向きとゲーム上の向きを分離する。状態や移動方向は参照しない。
+  function spriteOrientation(actor, sourceFacing) {
+    const facing = actor.facingDirection ?? (actor.facing === Math.PI ? -1 : 1);
+    return { sourceFacing, flip:facing !== sourceFacing };
+  }
+  // 水平反転はこの共通描画関数だけで適用。足元へtranslateした後に呼ぶ。
+  function drawOrientedImage(ctx, selected, actor, ...geometry) {
+    const orientation = spriteOrientation(actor, selected.sourceFacing);
+    if (orientation.flip) ctx.scale(-1, 1);
+    ctx.drawImage(selected.image, ...geometry);
+  }
   // 経過時間でコマを選ぶ共通処理。速度変更は既存の演出時間に追従する。
   function spriteFrame(side, actor, time) {
     const config = SPRITES[side], clip = config.poses[actor.pose] && (actor.moving || config.poses[actor.pose].once) && config.poses[actor.pose];
@@ -41,7 +52,7 @@
     const index = animated ? clip.once ? Math.min(clip.frames.length - 1, Math.floor(actor.attackTime / (clip.duration / clip.frames.length))) : Math.floor(time * clip.fps / 1000) % clip.frames.length : 0;
     return { image:animated ? images[side + ':' + actor.pose] : images[side],
       frame:animated ? clip.frames[index] : config.frame, index, animated, clip:animated ? clip : null,
-      flip:(actor.facingDirection ?? (actor.facing === Math.PI ? -1 : 1)) !== (animated && clip.sourceFacing || config.sourceFacing || 1) };
+      ...spriteOrientation(actor, (animated && clip.sourceFacing) || config.sourceFacing || 1) };
   }
   const GROUND_Y = 212;
   const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
@@ -158,8 +169,7 @@
     if (actor.pose === 'walk' && !selected.animated && !config.poses.walk) ctx.scale(1, actor.frame ? .98 : 1);
     if (actor.pose === 'attack' && !selected.clip?.once) { ctx.rotate(actor.facingDirection * .07); ctx.scale(1.04, .98); }
     if (actor.pose === 'damage') ctx.rotate(-actor.facingDirection * .08);
-    if (selected.flip) ctx.scale(-1, 1);
-    ctx.drawImage(selected.image, ...frame, dx, dy, width, height);
+    drawOrientedImage(ctx, selected, actor, ...frame, dx, dy, width, height);
     if ((actor.pose === 'attack' && !selected.clip?.once) || actor.pose === 'damage') {
       ctx.fillStyle = actor.pose === 'attack' ? '#ffe2a2' : '#ffb476';
       ctx.fillRect(config.sourceFacing === -1 ? -width / 2 - 3 : width / 2, -height / 2, 3, 3);
@@ -267,5 +277,5 @@
     return control;
   }
 
-  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, LAYOUT, projectActor, resolveFacing, spriteFrame, ready, sampleScene, drawScene, play };
+  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, LAYOUT, projectActor, resolveFacing, spriteOrientation, spriteFrame, ready, sampleScene, drawScene, play };
 })();

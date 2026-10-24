@@ -13,6 +13,19 @@ const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () =>
       const page = await context.newPage(), errors = []; page.setDefaultTimeout(20000);
       page.on('pageerror', e => errors.push(e.message));
       await page.setContent(content);
+      await page.evaluate(oracle => {
+        window.__facingErrors=[];window.__facingDraws=0;
+        const ctx=document.querySelector('#pixel-canvas').getContext('2d'),draw=ctx.drawImage;
+        ctx.drawImage=function(image,...args){
+          const known=oracle[image.src];
+          if(!known)throw Error('未知の画像');
+          const expected=known.name.startsWith('spartan')?1:-1;
+          if(Math.sign(this.getTransform().a)*known.native!==expected)__facingErrors.push(known.name);
+          __facingDraws++;
+          return draw.call(this,image,...args);
+        };
+      },Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync(path.join(root,'tests/fixtures/sprite-native-facing.json'),'utf8'))).map(([name,e])=>['data:image/png;base64,'+fs.readFileSync(path.join(root,'assets/characters',name)).toString('base64'),{name,native:e.nativeFacing}])));
+
       const frames = await page.evaluate(async () => {
         await HumanityPixelBattle.ready;
         const clip = HumanityPixelBattle.SPRITES.player.poses.walk;
@@ -127,6 +140,7 @@ const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () =>
       await page.waitForFunction(() => document.querySelector('#hand-screen').dataset.phase === 'pixel-battle');
       await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
       await idle(); assert.equal(await page.locator('#round-result').isVisible(), true);
+      assert.deepEqual(await page.evaluate(()=>__facingErrors),[]);assert.ok(await page.evaluate(()=>__facingDraws)>100);
       assert.deepEqual(errors, []);
       console.log(`PASS ${width}px: ドット絵モード・両先攻/3ラウンド・1/2倍速/途中変更・スキップ/非表示・敗者のみ転倒/WIN整合・手札/結果/物語保存・モード切替`);
       await context.close();
