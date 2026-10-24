@@ -95,7 +95,7 @@ const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () =>
         assert.equal(await page.evaluate(() => __match.playerWins), 2);
         const scenes = await page.evaluate(() => __scenes);
         assert.ok(scenes.some(s => s.phase === 'entry') && scenes.some(s => s.phase === 'approach'));
-        assert.ok(scenes.every(s => ['cpu', 'player'].every(side => s[side].x >= 30 && s[side].x <= 290 && s[side].y === 177)));
+        assert.ok(scenes.every(s => ['cpu', 'player'].every(side => s[side].x >= 30 && s[side].x <= 290 && s[side].y === 212)));
       }
       // ページが非表示になっても、同じ確定結果に着地する。
       await page.evaluate(() => { window.__draws = 0; window.__stories = 0; });

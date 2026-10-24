@@ -16,21 +16,30 @@ for (const winner of ['player', 'cpu']) {
     const s = api.sampleScene(t, winner); phases.add(s.phase);
     assert.ok(s.player.x < s.cpu.x, '左右を入れ替えない');
     assert.equal(s.player.y, s.cpu.y, '共通の地面基準');
+    const bounds = {};
     for (const side of ['cpu', 'player']) {
-      const a = s[side]; poses[side].add(a.pose);
+      const a = api.projectActor(s[side], side); poses[side].add(a.pose);
       // スプライト全体と横倒し時の余白を含めて砂地の内側に収める。
-      assert.ok(a.x >= 30 && a.x <= 290 && a.y === api.GROUND_Y);
-      const config = api.SPRITES[side], h = config.height, w = h * config.frame[2] / config.frame[3];
-      const angle = ['fall', 'defeated'].includes(a.pose) ? (side === 'player' ? -1 : 1) * a.fall * .18 : 0;
+      assert.ok(a.x >= 0 && a.x <= 320 && a.y === api.GROUND_Y);
+      const config = api.SPRITES[side], h = config.height * api.LAYOUT.spriteScale, w = h * config.frame[2] / config.frame[3];
+      const fallen = ['fall', 'defeated'].includes(a.pose);
+      const direction = side === 'player' ? 1 : -1;
+      const angle = fallen ? -direction * a.fall * .18 : a.pose === 'attack' ? direction * .07 : a.pose === 'damage' ? -direction * .08 : 0;
+      const scaleX = a.pose === 'attack' ? 1.04 : 1;
+      const scaleY = fallen ? 1 - a.fall * .60 : a.pose === 'attack' || (a.pose === 'walk' && a.frame) ? .98 : 1;
+      const xs = [];
       for (const x of [-w / 2, w / 2]) for (const rawY of [-h, 0]) {
-        const y = rawY * (angle ? 1 - a.fall * .60 : 1);
-        const px = Math.round(a.x) + x * Math.cos(angle) - y * Math.sin(angle);
-        const py = Math.round(a.y) - w / 2 * Math.abs(Math.sin(angle)) + x * Math.sin(angle) + y * Math.cos(angle);
-        assert.ok(px >= 0 && px <= 320 && py >= 0 && py <= 200, '画像の四隅が切れない');
+        const y = rawY * scaleY, xx = x * scaleX;
+        const px = Math.round(a.x) + xx * Math.cos(angle) - y * Math.sin(angle);
+        const py = Math.round(a.y) - (fallen ? w / 2 * Math.abs(Math.sin(angle)) : 0) + xx * Math.sin(angle) + y * Math.cos(angle);
+        xs.push(px);
+        assert.ok(px >= 0 && px <= 320 && py >= 0 && py <= api.HEIGHT, '画像の四隅が切れない');
       }
+      bounds[side] = { left:Math.min(...xs), right:Math.max(...xs) };
       if (['fall', 'defeated'].includes(a.pose)) assert.notEqual(side, winner);
       if (a.pose === 'victory') assert.equal(side, winner);
     }
+    assert.ok(bounds.cpu.left - bounds.player.right >= 2, '装備を含めた画像が重なりすぎない');
     if (s.player.pose === 'attack' || s.cpu.pose === 'attack') {
       assert.ok(Math.hypot(s.player.x - s.cpu.x, s.player.y - s.cpu.y) < 90, '離れたまま攻撃しない');
     }

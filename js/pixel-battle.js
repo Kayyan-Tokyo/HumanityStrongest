@@ -1,13 +1,21 @@
 (() => {
   'use strict';
   // 描画専用。能力値・判定API・乱数は参照しない。
-  const WIDTH = 320, HEIGHT = 200, DURATION = 10000;
+  const WIDTH = 320, HEIGHT = 240, DURATION = 10000;
   // 演出専用の固定配役。正式キャラクターのIDや能力とは対応させない。
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
     player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{} },
     cpu: { src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{} }
   };
+  // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
+  const LAYOUT = { spriteScale:1.35, separation:18, edgePadding:8 };
+  function projectActor(actor, side) {
+    const config = SPRITES[side];
+    const halfWidth = config.height * LAYOUT.spriteScale * config.frame[2] / config.frame[3] / 2;
+    const margin = halfWidth + LAYOUT.edgePadding;
+    return { ...actor, x:Math.max(margin, Math.min(WIDTH - margin, actor.x + (side === 'player' ? -LAYOUT.separation : LAYOUT.separation))) };
+  }
   const images = {};
   const ready = Promise.all(Object.entries(SPRITES).map(([side, config]) => new Promise(resolve => {
     if (typeof Image === 'undefined') { resolve(); return; }
@@ -17,7 +25,7 @@
     image.onerror = () => { clearTimeout(timer); resolve(); };
     image.src = config.src;
   })));
-  const GROUND_Y = 177;
+  const GROUND_Y = 212;
   const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
   const ease = n => { const p = clamp(n, 0, 1); return p * p * (3 - 2 * p); };
 
@@ -108,7 +116,7 @@
     const config = SPRITES[side];
     const frames = config.poses[actor.pose] || [config.frame];
     const frame = frames[actor.frame % frames.length];
-    const height = config.height, width = height * frame[2] / frame[3];
+    const height = config.height * LAYOUT.spriteScale, width = height * frame[2] / frame[3];
     const fallen = actor.pose === 'fall' || actor.pose === 'defeated';
     // 影と画像が同じ足元座標を使う。歩行中も上下へ浮かせない。
     ctx.fillStyle = '#00000066';
@@ -136,7 +144,7 @@
     if (!ctx) return false;
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
     ctx.imageSmoothingEnabled = false;
-    for (const side of ['cpu', 'player'].sort((a, b) => scene[a].y - scene[b].y)) drawActor(ctx, scene[side], side, scene.time);
+    for (const side of ['cpu', 'player'].sort((a, b) => scene[a].y - scene[b].y)) drawActor(ctx, projectActor(scene[side], side), side, scene.time);
     if (scene.hit > 0) {
       const x = (scene.player.x + scene.cpu.x) / 2, y = GROUND_Y - 30;
       ctx.globalAlpha = scene.hit; ctx.fillStyle = '#ffe8a1';
@@ -199,5 +207,5 @@
     return control;
   }
 
-  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, ready, sampleScene, drawScene, play };
+  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, LAYOUT, projectActor, ready, sampleScene, drawScene, play };
 })();
