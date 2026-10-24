@@ -13,7 +13,7 @@ function example(a,b,winner,round=1,roll=winner==='player'?0.001:0.999){
 function print({playerCard,cpuCard,story,winner}){
   console.log(`\n## ${playerCard.name} VS ${cpuCard.name} — 勝者：${winner==='player'?playerCard.name:cpuCard.name}（${story.body.length}文字）\n\n${story.headline}\n\n${story.body}\n\n決まり手：${story.finish}`);
 }
-const pairs=[['heavyweight-boxer','heavyweight-judoka'],['muay-thai','mma-fighter'],['oil-wrestler','spartan'],
+const pairs=[['ww2-us-soldier','gladiator'],['modern-us-soldier','gladiator'],['neanderthal','bodybuilder'],['heavyweight-boxer','heavyweight-judoka'],['muay-thai','mma-fighter'],['oil-wrestler','spartan'],
   ['us-office-worker','heavyweight-boxer'],['hacker','bjj-fighter'],['japanese-office-worker','female-mma-fighter']];
 for(const [a,b] of pairs)for(const winner of ['player','cpu'])print(example(a,b,winner));
 // 打撃だけでなく、MMAの倒す→寝技→関節技の接続も読む。
