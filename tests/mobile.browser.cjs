@@ -104,6 +104,8 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         assert.equal(await page.locator('#result-headline').textContent(),expected.headline);
         assert.equal(await page.locator('#result-finish').textContent(),`決まり手：${expected.finish}`);
         assert.ok(expected.reason.length>=150&&expected.reason.length<=250);
+        assert.equal(expected.reason.split('\n\n').length,3);
+        assert.doesNotMatch(expected.reason,/序盤：|中盤：|終盤：/);
         assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/PLAYER|STR|SPD|END|STK|GRP|SUB|抽選値|判定境界|戦闘力|計算式/);
         assert.equal(await page.locator('#round-result thead th').count(),3);
         assert.equal(await page.locator('#result-probability').textContent(),expected.probability);
@@ -120,6 +122,8 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         assert.equal(await page.locator('#result-headline').textContent(),expected.headline);
         assert.equal(await page.locator('#result-finish').textContent(),`決まり手：${expected.finish}`);
         assert.ok(expected.reason.length>=150&&expected.reason.length<=250);
+        assert.equal(expected.reason.split('\n\n').length,3);
+        assert.doesNotMatch(expected.reason,/序盤：|中盤：|終盤：/);
         assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/PLAYER|STR|SPD|END|STK|GRP|SUB|抽選値|判定境界|戦闘力|計算式/);
         assert.equal(await page.locator('#round-result thead th').count(),3);
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
