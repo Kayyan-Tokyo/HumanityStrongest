@@ -14,12 +14,12 @@ const walking = { pose:'walk', moving:true, direction:1 };
 assert.deepEqual([0,150,300,450,600].map(t => api.spriteFrame('player', walking, t).index), [0,1,2,3,0]);
 assert.equal(api.spriteFrame('player', { ...walking, moving:false }, 450).animated, false);
 assert.equal(api.spriteFrame('player', { ...walking, pose:'idle' }, 450).animated, false);
-assert.equal(api.spriteFrame('player', { ...walking, direction:-1 }, 450).flip, true);
+assert.equal(api.spriteFrame('player', { ...walking, direction:-1 }, 450).flip, false);
 assert.equal(api.spriteFrame('player', walking, 450).flip, false);
 assert.equal(api.spriteFrame('cpu', walking, 450).animated, true);
 assert.deepEqual([0,170,340,510,680].map(t=>api.spriteFrame('cpu',walking,t).index),[0,1,2,3,0]);
 assert.equal(api.spriteFrame('cpu',{...walking,moving:false},510).animated,false);
-assert.equal(api.spriteFrame('cpu',{...walking,direction:-1},510).flip,true);
+assert.equal(api.spriteFrame('cpu',{...walking,direction:-1},510).flip,false);
 assert.equal(api.spriteFrame('cpu',walking,510).flip,false);
 for (let t=0;t<3000;t+=10) {
   const actor=api.projectActor(api.sampleScene(t,'player').player,'player');
@@ -134,7 +134,7 @@ const step = time => { now = time; const calls = [...frames.values()]; frames.cl
   }
   api.drawScene(canvas,api.sampleScene(4700,'cpu')); assert.equal(canvas.dataset.cpuAttacking,'false');
   api.drawScene(canvas,api.sampleScene(4800,'cpu'));
-  assert.equal(canvas.dataset.cpuWalking,'true');assert.equal(canvas.dataset.cpuFlipped,'false');
+  assert.equal(canvas.dataset.cpuWalking,'true');assert.equal(canvas.dataset.cpuFlipped,'true');
   const slap=api.sampleScene(4500,'cpu');
   assert.ok(slap.hit>0);assert.equal(slap.player.pose,'damage');
   assert.equal(api.spriteFrame('cpu',slap.cpu,4500).index,2);
