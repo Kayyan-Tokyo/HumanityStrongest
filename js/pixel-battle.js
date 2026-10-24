@@ -5,7 +5,7 @@
   // 演出専用の固定配役。正式キャラクターのIDや能力とは対応させない。
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
-    player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, frames:[[31,34,153,145],[202,35,160,145],[414,14,150,166],[593,16,160,161]] } } },
+    player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, referenceHeight:144, anchors:[[80.5,142],[87,142],[81.5,145],[85.5,144]], frames:[[31,34,153,142],[202,35,160,142],[414,14,150,145],[593,16,160,144]] } } },
     cpu: { src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{} }
   };
   // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
@@ -135,15 +135,16 @@
     const config = SPRITES[side];
     const selected = spriteFrame(side, actor, time), frame = selected.frame;
     const height = config.height * LAYOUT.spriteScale * (selected.clip?.referenceHeight ? frame[3] / selected.clip.referenceHeight : 1), width = height * frame[2] / frame[3];
-    const dx = selected.clip?.anchor ? -selected.clip.anchor[0] * height / frame[3] : -width / 2;
-    const dy = selected.clip?.anchor ? -selected.clip.anchor[1] * height / frame[3] : -height;
+    const anchor = selected.clip?.anchors?.[selected.index] || selected.clip?.anchor;
+    const dx = anchor ? -anchor[0] * height / frame[3] : -width / 2;
+    const dy = anchor ? -anchor[1] * height / frame[3] : -height;
     const fallen = actor.pose === 'fall' || actor.pose === 'defeated';
     // 影と画像が同じ足元座標を使う。歩行中も上下へ浮かせない。
     ctx.fillStyle = '#00000066';
     ctx.beginPath(); ctx.ellipse(actor.x, actor.y + 1, config.height * LAYOUT.spriteScale * config.frame[2] / config.frame[3] * .30, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.save(); ctx.translate(Math.round(actor.x), Math.round(actor.y) - (fallen ? width / 2 * Math.sin(actor.fall * .18) : 0));
     if (fallen) { ctx.rotate((side === 'player' ? -1 : 1) * actor.fall * .18); ctx.scale(1, 1 - actor.fall * .60); }
-    if (actor.pose === 'walk' && !selected.animated) ctx.scale(1, actor.frame ? .98 : 1);
+    if (actor.pose === 'walk' && !selected.animated && !config.poses.walk) ctx.scale(1, actor.frame ? .98 : 1);
     if (actor.pose === 'attack' && !selected.clip?.once) { ctx.rotate(side === 'player' ? .07 : -.07); ctx.scale(1.04, .98); }
     if (actor.pose === 'damage') ctx.rotate(side === 'player' ? -.08 : .08);
     if (selected.flip) ctx.scale(-1, 1);
