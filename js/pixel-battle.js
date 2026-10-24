@@ -5,8 +5,8 @@
   // 演出専用の固定配役。正式キャラクターのIDや能力とは対応させない。
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
-    player: { src:'./assets/characters/spartan_idle.png', height:46, frame:[22,45,147,139], poses:{} },
-    cpu: { src:'./assets/characters/sumo_idle.png', height:42, frame:[25,75,142,109], poses:{} }
+    player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{} },
+    cpu: { src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{} }
   };
   const images = {};
   const ready = Promise.all(Object.entries(SPRITES).map(([side, config]) => new Promise(resolve => {
@@ -17,57 +17,45 @@
     image.onerror = () => { clearTimeout(timer); resolve(); };
     image.src = config.src;
   })));
-  const marks = [
-    [0, .50, .38, .50, .81], [650, .50, .38, .50, .81],
-    [2000, .46, .50, .54, .66], [3200, .46, .50, .54, .66],
-    [4000, .62, .52, .44, .66], [4600, .55, .52, .46, .66],
-    [5600, .55, .52, .46, .66], [6800, .63, .42, .35, .77],
-    [8000, .53, .52, .46, .66], [10000, .53, .52, .46, .66]
-  ];
+  const GROUND_Y = 177;
   const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
+  const ease = n => { const p = clamp(n, 0, 1); return p * p * (3 - 2 * p); };
 
   function sampleScene(milliseconds, winner) {
     if (!['player', 'cpu'].includes(winner)) throw new Error('確定済みの勝者が必要です。');
     const t = clamp(milliseconds, 0, DURATION);
-    const index = marks.findIndex((mark, i) => i > 0 && t <= mark[0]);
-    const end = marks[index < 0 ? marks.length - 1 : index];
-    const start = marks[Math.max(0, (index < 0 ? marks.length - 1 : index) - 1)];
-    const ratio = clamp((t - start[0]) / (end[0] - start[0]), 0, 1);
-    const blend = ratio * ratio * (3 - 2 * ratio);
-    const position = column => start[column] + (end[column] - start[column]) * blend;
-    const actors = {
-      cpu: { x: position(1) * WIDTH, y: position(2) * HEIGHT, pose: 'idle' },
-      player: { x: position(3) * WIDTH, y: position(4) * HEIGHT, pose: 'idle' }
-    };
-    let phase = 'entry', attack = null;
-    if (t >= 650 && t < 2000) phase = 'approach';
-    if (t >= 2000 && t < 3200) { phase = 'exchange'; attack = t < 2600 ? 'cpu' : 'player'; }
-    if (t >= 3200 && t < 4600) phase = 'circle';
-    if (t >= 4600 && t < 5600) { phase = 'exchange'; attack = t < 5100 ? 'player' : 'cpu'; }
-    if (t >= 5600 && t < 6800) phase = 'retreat';
-    if (t >= 6800 && t < 8000) phase = 'approach';
-    if (t >= 8000 && t < 8500) { phase = 'exchange'; attack = winner === 'player' ? 'cpu' : 'player'; }
-    if (t >= 8500 && t < 9000) { phase = 'finish'; attack = winner; }
     const loser = winner === 'player' ? 'cpu' : 'player';
-    if (['approach', 'circle', 'retreat'].includes(phase)) {
-      actors.cpu.pose = actors.player.pose = 'walk';
-    }
-    if (attack) {
+    const entry = ease(t / 1000), approach = ease((t - 1000) / 2000);
+    const actors = {
+      player: { x:36 + 56 * entry + 30 * approach, y:GROUND_Y, pose:t < 3000 ? 'walk' : 'idle' },
+      cpu: { x:284 - 56 * entry - 30 * approach, y:GROUND_Y, pose:t < 3000 ? 'walk' : 'idle' }
+    };
+    let phase = t < 1000 ? 'entry' : 'approach', attack = null, hit = 0;
+    if (t >= 3000 && t < 8000) {
+      phase = t < 7000 ? 'exchange' : 'finish';
+      const progress = ((t - 3000) % 1000) / 1000;
+      attack = t >= 7000 ? winner : Math.floor((t - 3000) / 1000) % 2 === 0 ? 'player' : 'cpu';
+      const defender = attack === 'player' ? 'cpu' : 'player';
+      const direction = attack === 'player' ? 1 : -1;
+      const lunge = Math.sin(progress * Math.PI);
+      hit = progress >= .40 && progress < .70 ? Math.sin((progress - .40) / .30 * Math.PI) : 0;
+      actors[attack].x += direction * lunge * (t >= 7000 ? 16 : 12);
+      actors[defender].x += direction * Math.sin(clamp((progress - .4) / .6, 0, 1) * Math.PI) * 8;
       actors[attack].pose = 'attack';
-      actors[attack === 'player' ? 'cpu' : 'player'].pose = 'damage';
+      actors[defender].pose = progress >= .4 ? 'damage' : 'idle';
     }
-    if (t >= 9000) {
-      phase = t < 9400 ? 'fall' : 'victory';
-      actors[loser].pose = t < 9400 ? 'fall' : 'defeated';
-      actors[winner].pose = t < 9400 ? 'idle' : 'victory';
+    if (t >= 8000) {
+      actors[loser].x += loser === 'cpu' ? 10 : -10;
+      actors[loser].pose = t < 9000 ? 'fall' : 'defeated';
+      actors[winner].pose = t < 9000 ? 'idle' : 'victory';
+      phase = t < 9000 ? 'fall' : 'victory';
     }
     for (const side of ['cpu', 'player']) {
-      const actor = actors[side], other = actors[side === 'cpu' ? 'player' : 'cpu'];
-      actor.facing = Math.atan2(other.y - actor.y, other.x - actor.x);
-      actor.frame = Math.floor(t / 120) % 2;
-      actor.fall = actor.pose === 'defeated' ? 1 : clamp((t - 9000) / 400, 0, 1);
+      actors[side].facing = side === 'player' ? 0 : Math.PI;
+      actors[side].frame = Math.floor(t / 120) % 2;
+      actors[side].fall = actors[side].pose === 'defeated' ? 1 : clamp((t - 8000) / 1000, 0, 1);
     }
-    return { time: t, phase, winner, loser, ...actors };
+    return { time:t, phase, winner, loser, hit, ...actors };
   }
 
   // 16×24ピクセルの仮キャラを1.5倍で描く。足元を基準に奥から描画する。
@@ -80,7 +68,7 @@
     ctx.beginPath(); ctx.ellipse(actor.x, actor.y + 1, fallen ? 18 : 12, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.save();
     ctx.translate(Math.round(actor.x), Math.round(actor.y));
-    if (fallen) { ctx.rotate(actor.fall * Math.PI / 2); ctx.scale(1, 1 - actor.fall * .25); }
+    if (fallen) { ctx.rotate((side === 'player' ? -1 : 1) * actor.fall * Math.PI / 2); ctx.scale(1, 1 - actor.fall * .25); }
     ctx.scale(1.5, 1.5);
     ctx.translate(-8, -24 + bob);
     const suit = side === 'player' ? '#439dff' : '#f36162';
@@ -125,8 +113,11 @@
     // 影と画像が同じ足元座標を使う。歩行中も上下へ浮かせない。
     ctx.fillStyle = '#00000066';
     ctx.beginPath(); ctx.ellipse(actor.x, actor.y + 1, width * .30, 4, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.save(); ctx.translate(Math.round(actor.x), Math.round(actor.y));
-    if (fallen) { ctx.rotate(actor.fall * Math.PI / 2); ctx.scale(1, 1 - actor.fall * .25); }
+    ctx.save(); ctx.translate(Math.round(actor.x), Math.round(actor.y) - (fallen ? width / 2 * Math.sin(actor.fall * .18) : 0));
+    if (fallen) { ctx.rotate((side === 'player' ? -1 : 1) * actor.fall * .18); ctx.scale(1, 1 - actor.fall * .60); }
+    if (actor.pose === 'walk') ctx.scale(1, actor.frame ? .98 : 1);
+    if (actor.pose === 'attack') { ctx.rotate(side === 'player' ? .07 : -.07); ctx.scale(1.04, .98); }
+    if (actor.pose === 'damage') ctx.rotate(side === 'player' ? -.08 : .08);
     if (side === 'cpu') ctx.scale(-1, 1);
     ctx.drawImage(images[side], ...frame, -width / 2, -height, width, height);
     if (actor.pose === 'attack' || actor.pose === 'damage') {
@@ -146,6 +137,12 @@
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
     ctx.imageSmoothingEnabled = false;
     for (const side of ['cpu', 'player'].sort((a, b) => scene[a].y - scene[b].y)) drawActor(ctx, scene[side], side, scene.time);
+    if (scene.hit > 0) {
+      const x = (scene.player.x + scene.cpu.x) / 2, y = GROUND_Y - 30;
+      ctx.globalAlpha = scene.hit; ctx.fillStyle = '#ffe8a1';
+      ctx.fillRect(x - 6, y - 1, 12, 2); ctx.fillRect(x - 1, y - 6, 2, 12);
+      ctx.globalAlpha = 1;
+    }
     canvas.dataset.scene = scene.phase;
     canvas.dataset.winner = scene.phase === 'victory' ? scene.winner : '';
     canvas.dataset.playerPose = scene.player.pose;
@@ -202,5 +199,5 @@
     return control;
   }
 
-  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, SPRITES, ready, sampleScene, drawScene, play };
+  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, ready, sampleScene, drawScene, play };
 })();

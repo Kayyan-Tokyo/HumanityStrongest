@@ -2,6 +2,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), path = re
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..'), html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () => "url('data:image/webp;base64," + fs.readFileSync(path.join(root, 'assets/backgrounds/colosseum.webp')).toString('base64') + "')")
+  .replace("url('./assets/backgrounds/colosseum_side.webp')", () => "url('data:image/webp;base64," + fs.readFileSync(path.join(root, 'assets/backgrounds/colosseum_side.webp')).toString('base64') + "')")
   .replace(/<script src="([^"]+)" defer><\/script>/g, (_, src) => '<script>' + fs.readFileSync(path.join(root, src.split('?')[0]), 'utf8').replace(/\.\/assets\/characters\/(spartan_idle|sumo_idle)\.png/g, (_, name) => 'data:image/png;base64,' + fs.readFileSync(path.join(root, 'assets/characters', name + '.png')).toString('base64')) + '</script>');
 
 (async () => {
@@ -93,8 +94,8 @@ const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () =>
         assert.equal(await page.evaluate(() => __match.phase), 'finished');
         assert.equal(await page.evaluate(() => __match.playerWins), 2);
         const scenes = await page.evaluate(() => __scenes);
-        assert.ok(scenes.some(s => s.phase === 'circle') && scenes.some(s => s.phase === 'retreat'));
-        assert.ok(scenes.every(s => ['cpu', 'player'].every(side => s[side].x > 80 && s[side].x < 230 && s[side].y > 65 && s[side].y < 170)));
+        assert.ok(scenes.some(s => s.phase === 'entry') && scenes.some(s => s.phase === 'approach'));
+        assert.ok(scenes.every(s => ['cpu', 'player'].every(side => s[side].x >= 30 && s[side].x <= 290 && s[side].y === 177)));
       }
       // ページが非表示になっても、同じ確定結果に着地する。
       await page.evaluate(() => { window.__draws = 0; window.__stories = 0; });
