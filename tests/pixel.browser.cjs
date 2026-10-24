@@ -15,6 +15,16 @@ const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () =>
       await page.setContent(content);
       const frames = await page.evaluate(async () => {
         await HumanityPixelBattle.ready;
+        const clip = HumanityPixelBattle.SPRITES.player.poses.walk;
+        const sheet = new Image(); sheet.src = clip.src; await sheet.decode();
+        const probe = document.createElement('canvas'); probe.width=sheet.width; probe.height=sheet.height;
+        const context = probe.getContext('2d'); context.drawImage(sheet,0,0);
+        for(const [i,frame] of clip.frames.entries()) {
+          const pixels=context.getImageData(...frame).data;
+          let bottom=0;
+          for(let y=0;y<frame[3];y++)for(let x=0;x<frame[2];x++)if(pixels[(y*frame[2]+x)*4+3]>32)bottom=y+1;
+          if(bottom!==clip.anchors[i][1])throw Error('靴底と足元基準が不一致');
+        }
         const canvas = document.querySelector('#pixel-canvas'), frames = [];
         for (const time of [1100,1250,1400,1550]) {
           HumanityPixelBattle.drawScene(canvas, HumanityPixelBattle.sampleScene(time, 'player'));
