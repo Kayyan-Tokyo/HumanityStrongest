@@ -2,7 +2,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const tags=[...html.matchAll(/<script src="([^"]+)" defer><\/script>/g)];assert.equal(tags.length,6);
 assert.equal(new Set(tags.map(([,s])=>s.split('?v=')[1])).size,1);
-const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<script>'+fs.readFileSync(path.join(root,src.split('?')[0]),'utf8')+'</script>');
+const content=html.replace("url('./assets/backgrounds/colosseum.webp')",()=>"url('data:image/webp;base64,"+fs.readFileSync(path.join(root,'assets/backgrounds/colosseum.webp')).toString('base64')+"')")
+ .replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<script>'+fs.readFileSync(path.join(root,src.split('?')[0]),'utf8')+'</script>');
 (async()=>{
  const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox','--disable-crashpad-for-testing']});
  try{
