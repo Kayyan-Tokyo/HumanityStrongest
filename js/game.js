@@ -8,7 +8,7 @@
   let moving = false;
   let fast = false;
   let mode = 'card';
-  let pixelRun = null;
+  let pixelRun = null, pixelRenderer = null;
   const pending = new Set();
   const reduced = () => !get('player-fighter').animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function skipEffects() { fast = true; pixelRun?.skip(); for (const finish of [...pending]) finish(); }
@@ -60,7 +60,7 @@
     }
   }
   function clearEffects() {
-    pixelRun?.skip(); pixelRun = null;
+    pixelRun?.skip(); pixelRun = null; pixelRenderer = null;
     get('battle-arena').classList.remove('pixel-active');
     get('pixel-canvas').hidden = true; get('pixel-legend').hidden = true;
     get('hand-screen').dataset.phase='selecting';
@@ -71,17 +71,32 @@
       get(id).classList.remove('winner-card'); get(id).setAttribute('aria-hidden','false');
     }
   }
-  function showPixelScene(result) {
+  function createPixelRenderer(result) {
+    pixelRenderer = window.HumanityPixelBattle.createRenderer({
+      playerId:result.playerCard.id, cpuId:result.cpuCard.id
+    });
+    return pixelRenderer;
+  }
+  function showPixelScene(result, renderer) {
     get('battle-arena').classList.add('pixel-active');
     get('pixel-canvas').hidden = false; get('pixel-legend').hidden = false;
-    get('pixel-canvas').setAttribute('aria-label', `あなた：${result.playerCard.name}（スパルタ兵の仮画像）、CPU：${result.cpuCard.name}（力士の仮画像）の自動戦闘`);
+    const labels = {};
+    for (const side of ['player','cpu']) {
+      const card = side === 'player' ? result.playerCard : result.cpuCard;
+      const missing = !renderer.spriteFrame(side, { pose:'idle' }, 0).image;
+      labels[side] = `${side === 'player' ? 'あなた' : 'CPU'}：${card.name}${missing ? '（仮表示）' : ''}`;
+    }
+    get('pixel-legend').querySelector('.blue').textContent = labels.player;
+    get('pixel-legend').querySelector('.red').textContent = labels.cpu;
+    get('pixel-canvas').setAttribute('aria-label', `${labels.player}、${labels.cpu}の自動戦闘`);
   }
 
   async function pixelEffects(result) {
-    await window.HumanityPixelBattle.ready;
-    showPixelScene(result);
+    const renderer = createPixelRenderer(result);
+    await renderer.ready;
+    showPixelScene(result, renderer);
     get('hand-screen').dataset.phase = 'pixel-battle';
-    pixelRun = window.HumanityPixelBattle.play(get('pixel-canvas'), {
+    pixelRun = renderer.play(get('pixel-canvas'), {
       winner: result.winner, speed: Number(get('pixel-speed').value) || 1,
       instant: fast || reduced() || Boolean(document.hidden),
       onScene(scene) {
@@ -334,7 +349,7 @@
   });
   get('skip-button').addEventListener('click', skipEffects);
   get('pixel-speed').addEventListener('change', () => pixelRun?.setSpeed(Number(get('pixel-speed').value)));
-  get('battle-mode').addEventListener('change', () => {
+  get('battle-mode').addEventListener('change', async () => {
     if (moving) { get('battle-mode').value = mode; return; }
     mode = get('battle-mode').value === 'pixel' ? 'pixel' : 'card';
     get('pixel-speed-label').hidden = mode !== 'pixel';
@@ -343,8 +358,11 @@
       clearEffects();
       get('hand-screen').dataset.phase = 'result';
       if (mode === 'pixel') {
-        showPixelScene(result);
-        window.HumanityPixelBattle.drawScene(get('pixel-canvas'), window.HumanityPixelBattle.sampleScene(window.HumanityPixelBattle.DURATION, result.winner));
+        const renderer = createPixelRenderer(result);
+        await renderer.ready;
+        if (pixelRenderer !== renderer) return;
+        showPixelScene(result, renderer);
+        renderer.drawScene(get('pixel-canvas'), renderer.sampleScene(renderer.DURATION, result.winner));
       } else {
         const winner = get(result.winner === 'player' ? 'player-fighter' : 'cpu-fighter');
         const loser = get(result.winner === 'player' ? 'cpu-fighter' : 'player-fighter');

@@ -8,8 +8,9 @@ const context = vm.createContext({ window: {}, Math: math, performance: { now: (
   setTimeout: (cb, ms) => { const id = ++serial; timers.set(id, { cb, at: now + ms }); return id; },
   clearTimeout: id => timers.delete(id)
 });
+vm.runInContext(fs.readFileSync('js/sprite-registry.js','utf8'), context);
 vm.runInContext(fs.readFileSync('js/pixel-battle.js', 'utf8'), context);
-const api = context.window.HumanityPixelBattle;
+const api = context.window.HumanityPixelBattle.createRenderer({playerId:'spartan',cpuId:'sumo'});
 const walking = { pose:'walk', moving:true, direction:1 };
 assert.deepEqual([0,150,300,450,600].map(t => api.spriteFrame('player', walking, t).index), [0,1,2,3,0]);
 assert.equal(api.spriteFrame('player', { ...walking, moving:false }, 450).animated, false);

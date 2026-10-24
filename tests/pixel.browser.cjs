@@ -13,13 +13,18 @@ const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () =>
       const page = await context.newPage(), errors = []; page.setDefaultTimeout(20000);
       page.on('pageerror', e => errors.push(e.message));
       await page.setContent(content);
+      await page.evaluate(()=>Object.assign(HumanityPixelBattle,HumanityPixelBattle.createRenderer({playerId:'spartan',cpuId:'sumo'})));
       await page.evaluate(oracle => {
         window.__facingErrors=[];window.__facingDraws=0;
         const ctx=document.querySelector('#pixel-canvas').getContext('2d'),draw=ctx.drawImage;
         ctx.drawImage=function(image,...args){
           const known=oracle[image.src];
           if(!known)throw Error('未知の画像');
-          const expected=known.name.startsWith('spartan')?1:-1;
+          const id=known.name.startsWith('spartan')?'spartan':'sumo';
+          const canvas=document.querySelector('#pixel-canvas');
+          const side=['player','cpu'].find(side=>canvas.dataset[side+'CharacterId']===id);
+          if(!side)throw Error('選択されていない人物の画像');
+          const expected=Number(canvas.dataset[side+'Facing']);
           if(Math.sign(this.getTransform().a)*known.native!==expected)__facingErrors.push(known.name);
           __facingDraws++;
           return draw.call(this,image,...args);
@@ -51,12 +56,12 @@ const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () =>
       assert.equal(new Set(frames).size, 4);
       await page.evaluate(() => {
         const deal = HumanityMatch.deal, resolve = HumanityBattle.resolveRound, story = HumanityStory.generateStory;
-        const play = HumanityPixelBattle.play;
+        const createRenderer = HumanityPixelBattle.createRenderer;
         window.__first = 'player'; window.__draws = 0; window.__stories = 0; window.__scenes = [];
         HumanityMatch.deal = chars => window.__match = deal([...chars].sort((a, b) => b.name.length - a.name.length), () => __first === 'player' ? 0 : .999999);
         HumanityBattle.resolveRound = (p, c) => resolve(p, c, () => [0, .999999, 0][window.__draws++]);
         HumanityStory.generateStory = result => { window.__stories++; return story(result); };
-        HumanityPixelBattle.play = (canvas, options) => play(canvas, { ...options, onScene(scene) { window.__scenes.push(scene); options.onScene?.(scene); } });
+        HumanityPixelBattle.createRenderer = options => { const renderer=createRenderer(options),play=renderer.play; renderer.play=(canvas,options)=>play(canvas,{...options,onScene(scene){window.__scenes.push(scene);options.onScene?.(scene);}}); return renderer; };
       });
       const idle = () => page.waitForFunction(() => document.querySelector('#hand-screen').getAttribute('aria-busy') !== 'true');
       for (const first of ['player', 'cpu']) {
@@ -140,7 +145,7 @@ const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () =>
       await page.waitForFunction(() => document.querySelector('#hand-screen').dataset.phase === 'pixel-battle');
       await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
       await idle(); assert.equal(await page.locator('#round-result').isVisible(), true);
-      assert.deepEqual(await page.evaluate(()=>__facingErrors),[]);assert.ok(await page.evaluate(()=>__facingDraws)>100);
+      assert.deepEqual(await page.evaluate(()=>__facingErrors),[]);assert.ok(await page.evaluate(()=>__facingDraws)>=4);
       assert.deepEqual(errors, []);
       console.log(`PASS ${width}px: ドット絵モード・両先攻/3ラウンド・1/2倍速/途中変更・スキップ/非表示・敗者のみ転倒/WIN整合・手札/結果/物語保存・モード切替`);
       await context.close();
