@@ -14,30 +14,40 @@ for (const winner of ['player', 'cpu']) {
   const poses = { player: new Set(), cpu: new Set() }, phases = new Set();
   for (let t = 0; t <= 10000; t += 10) {
     const s = api.sampleScene(t, winner); phases.add(s.phase);
+    assert.ok(s.player.x < s.cpu.x, '左右を入れ替えない');
+    assert.equal(s.player.y, s.cpu.y, '共通の地面基準');
     for (const side of ['cpu', 'player']) {
       const a = s[side]; poses[side].add(a.pose);
       // スプライト全体と横倒し時の余白を含めて砂地の内側に収める。
-      assert.ok(a.x >= 88 && a.x <= 220 && a.y >= 70 && a.y <= 165);
+      assert.ok(a.x >= 30 && a.x <= 290 && a.y === api.GROUND_Y);
       const config = api.SPRITES[side], h = config.height, w = h * config.frame[2] / config.frame[3];
-      const angle = ['fall', 'defeated'].includes(a.pose) ? a.fall * Math.PI / 2 : 0;
-      for (const x of [-w / 2, w / 2]) for (const y of [-h, 0]) {
+      const angle = ['fall', 'defeated'].includes(a.pose) ? (side === 'player' ? -1 : 1) * a.fall * .18 : 0;
+      for (const x of [-w / 2, w / 2]) for (const rawY of [-h, 0]) {
+        const y = rawY * (angle ? 1 - a.fall * .60 : 1);
         const px = Math.round(a.x) + x * Math.cos(angle) - y * Math.sin(angle);
-        const py = Math.round(a.y) + x * Math.sin(angle) + y * Math.cos(angle);
+        const py = Math.round(a.y) - w / 2 * Math.abs(Math.sin(angle)) + x * Math.sin(angle) + y * Math.cos(angle);
         assert.ok(px >= 0 && px <= 320 && py >= 0 && py <= 200, '画像の四隅が切れない');
       }
       if (['fall', 'defeated'].includes(a.pose)) assert.notEqual(side, winner);
       if (a.pose === 'victory') assert.equal(side, winner);
     }
     if (s.player.pose === 'attack' || s.cpu.pose === 'attack') {
-      assert.ok(Math.hypot(s.player.x - s.cpu.x, s.player.y - s.cpu.y) < 48, '離れたまま攻撃しない');
+      assert.ok(Math.hypot(s.player.x - s.cpu.x, s.player.y - s.cpu.y) < 90, '離れたまま攻撃しない');
     }
   }
-  assert.ok(phases.has('circle') && phases.has('retreat'));
+  assert.ok(phases.has('entry') && phases.has('approach'));
   for (const side of ['cpu', 'player']) for (const pose of ['idle', 'walk', 'attack', 'damage']) assert.ok(poses[side].has(pose));
   assert.equal(api.sampleScene(10000, winner)[winner].pose, 'victory');
   assert.equal(api.sampleScene(10000, winner)[winner === 'player' ? 'cpu' : 'player'].pose, 'defeated');
 }
 const draws = [];
+for (const [time, phase] of [[0,'entry'],[999,'entry'],[1000,'approach'],[2999,'approach'],[3000,'exchange'],[6999,'exchange'],[7000,'finish'],[7999,'finish'],[8000,'fall'],[8999,'fall'],[9000,'victory']]) {
+  assert.equal(api.sampleScene(time, 'player').phase, phase);
+}
+assert.ok(api.sampleScene(1000,'player').player.x > api.sampleScene(0,'player').player.x);
+assert.ok(api.sampleScene(1000,'player').cpu.x < api.sampleScene(0,'player').cpu.x);
+assert.ok(api.sampleScene(3500,'player').cpu.x > api.sampleScene(3000,'player').cpu.x, '被弾時の後退');
+assert.ok(api.sampleScene(4500,'player').player.x < api.sampleScene(3000,'player').player.x, '反撃でプレイヤーも後退');
 const ctx = new Proxy({ drawImage: (...args) => draws.push(args) }, { get: (o, p) => p in o ? o[p] : (() => {}) });
 const canvas = { dataset: {}, getContext: () => ctx };
 const reset = () => { now = 0; timers.clear(); frames.clear(); };
