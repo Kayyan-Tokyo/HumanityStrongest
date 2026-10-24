@@ -82,8 +82,8 @@
   function renderTurn() {
     const playerFirst = match.firstSide === 'player';
     get('turn-status').textContent = playerFirst
-      ? 'あなたが先攻。カードを選び、先に公開してください。'
-      : 'あなたが後攻。CPUの公開カードを見てから選べます。';
+      ? 'あなたが先攻。カードを選んでください。'
+      : 'あなたが後攻。相手のカードを見て選んでください。';
     if (playerFirst) concealCpuFighter();
     else showCpuFighter(match.cpuCard, false);
   }
@@ -146,6 +146,7 @@
     get('result-stats').replaceChildren();
     get('result-probability').textContent = '';
     get('result-reason').textContent = '';
+    get('result-finish').textContent = '';
     get('result-headline').textContent = '';
   }
 
@@ -166,6 +167,7 @@
     const commentary = result.story;
     get('result-headline').textContent = commentary.headline;
     get('result-reason').textContent = commentary.body;
+    get('result-finish').textContent = `決まり手：${commentary.finish}`;
     get('round-result').hidden = false;
   }
 
@@ -182,7 +184,7 @@
     window.HumanityMatch.commitPlayerCard(match, selectedId);
     stage = 'ready';
     renderHands();
-    get('turn-status').textContent = 'あなたが先攻。公開カードを確定しました。CPUの選択は対戦開始時に公開されます。';
+    get('turn-status').textContent = 'あなたが先攻。カードを決めました。相手のカードは対戦開始時に分かります。';
     get('status').textContent = '「このキャラで戦う」で対戦を始めましょう。';
     fightButton.focus({ preventScroll: true });
   });

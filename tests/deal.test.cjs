@@ -41,7 +41,7 @@ const context = vm.createContext({window: {scrollTo() {}}, Math: Object.create(M
   getElementById: id => { assert.ok(ids[id], `HTMLに ${id} が存在する`); return ids[id]; },
   createElement: tag => new Element(tag), querySelector: () => main, body: new Element('body')
 }});
-for (const file of ['js/characters.js', 'js/battle.js', 'js/story.js', 'js/match.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+for (const file of ['js/characters.js', 'js/battle.js', 'js/combat-styles.js', 'js/story.js', 'js/match.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
 const api = context.window.HumanityMatch;
 const originalDeal = api.deal;
 let currentMatch, dealCount = 0, nextWinner = 'player', firstRoll = 0;
@@ -96,6 +96,7 @@ function fight(winner){
   const result=currentMatch.rounds.at(-1);
   assert.equal(ids['result-stats'].children.length,6);
   assert.equal(ids['result-reason'].textContent,result.story.body);
+  assert.equal(ids['result-finish'].textContent,`決まり手：${result.story.finish}`);
   assert.equal(currentMatch.rounds.length,before+1);
   const front=ids['cpu-fighter'].children[0];
   for(let i=0;i<10;i++)ids['fight-button'].listeners.click();

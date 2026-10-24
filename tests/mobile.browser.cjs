@@ -4,7 +4,7 @@ const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const tags=[...html.matchAll(/<script src="([^"]+)" defer><\/script>/g)];
-assert.equal(tags.length,5);
+assert.equal(tags.length,6);
 const versions=tags.map(([,src])=>new URL(src,'https://test.invalid/').searchParams.get('v'));
 assert.ok(versions.every(Boolean));assert.equal(new Set(versions).size,1);
 const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<script>'+fs.readFileSync(path.join(root,src.split('?')[0]),'utf8')+'</script>');
@@ -55,6 +55,8 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
       assert.equal(new Set(roster).size,6);
       for(let round=1;round<=3;round++){
         assert.equal(await page.locator('#round-result').isVisible(),false);
+        assert.equal(await page.locator('#result-finish').textContent(),'');
+        assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/公開/);
         assert.equal(await page.locator('#result-stats tr').count(),0);
         assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/STR|SPD|END|STK|GRP|SUB/);
         const firstSide=await page.evaluate(()=>window.__match.firstSide);
@@ -94,12 +96,13 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         assert.equal(await page.evaluate(()=>window.__roundDraws),round);assert.equal(await page.evaluate(()=>window.__storyCount),round);
         const expected=await page.evaluate(()=>{
           const result=window.__match.rounds.at(-1),d=result.decision;
-          return {cpu:result.cpuCard.name,reason:result.story.body,probability:`対戦前の勝率：あなた ${d.playerWinPercent}% ／ CPU ${100-d.playerWinPercent}%`,
+          return {cpu:result.cpuCard.name,reason:result.story.body,finish:result.story.finish,probability:`対戦前の勝率：あなた ${d.playerWinPercent}% ／ CPU ${100-d.playerWinPercent}%`,
             rows:window.HumanityBattle.STATS.map(s=>[window.HumanityBattle.STAT_LABELS[s],String(d.playerStats[s]),String(d.cpuStats[s])]),headline:result.story.headline};
         });
         assert.equal(await page.locator('#cpu-fighter .card-name').textContent(),expected.cpu);
         assert.equal(await page.locator('#result-reason').textContent(),expected.reason);
         assert.equal(await page.locator('#result-headline').textContent(),expected.headline);
+        assert.equal(await page.locator('#result-finish').textContent(),`決まり手：${expected.finish}`);
         assert.ok(expected.reason.length>=150&&expected.reason.length<=250);
         assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/PLAYER|STR|SPD|END|STK|GRP|SUB|抽選値|判定境界|戦闘力|計算式/);
         assert.equal(await page.locator('#round-result thead th').count(),3);
@@ -115,6 +118,7 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         assert.equal(await page.evaluate(()=>window.__roundDraws),round);assert.equal(await page.evaluate(()=>window.__storyCount),round);
         assert.equal(await page.locator('#result-reason').textContent(),expected.reason);
         assert.equal(await page.locator('#result-headline').textContent(),expected.headline);
+        assert.equal(await page.locator('#result-finish').textContent(),`決まり手：${expected.finish}`);
         assert.ok(expected.reason.length>=150&&expected.reason.length<=250);
         assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/PLAYER|STR|SPD|END|STK|GRP|SUB|抽選値|判定境界|戦闘力|計算式/);
         assert.equal(await page.locator('#round-result thead th').count(),3);
