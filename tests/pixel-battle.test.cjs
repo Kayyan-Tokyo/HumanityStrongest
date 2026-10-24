@@ -136,15 +136,29 @@ const step = time => { now = time; const calls = [...frames.values()]; frames.cl
   api.drawScene(canvas,api.sampleScene(4800,'cpu'));
   assert.equal(canvas.dataset.cpuWalking,'true');assert.equal(canvas.dataset.cpuFlipped,'true');
   const slap=api.sampleScene(4500,'cpu');
+  for(const [i,t] of [4450,4550,4650,4750].entries()) {
+    const s=api.sampleScene(t,'player');
+    api.drawScene(canvas,s);
+    assert.equal(s.player.pose,'damage');
+    assert.equal(api.spriteFrame('player',s.player,t).index,i);
+    assert.equal(api.spriteFrame('player',{...s.player,facing:Math.PI},t).flip,true);
+    assert.equal(canvas.dataset.playerWalking,'false');
+    assert.equal(canvas.dataset.playerAttacking,'false');
+  }
+  assert.notEqual(api.sampleScene(4449,'player').player.pose,'damage');
+  assert.equal(api.sampleScene(4450,'player').player.hitTime,0);
+  assert.ok(api.sampleScene(4451,'player').hit>0);
+  assert.equal(api.sampleScene(4850,'player').player.pose,'idle');
+  assert.equal(api.sampleScene(5450,'player').player.pose,'attack','被弾後に攻撃へ復帰');
   assert.ok(slap.hit>0);assert.equal(slap.player.pose,'damage');
   assert.equal(api.spriteFrame('cpu',slap.cpu,4500).index,2);
   assert.equal(api.spriteFrame('cpu',slap.cpu,4500).flip,true);
   for(const t of [1100,1250,1400,1550]) api.drawScene(canvas,api.sampleScene(t,'player'));
   assert.ok(draws.length > 0);
   for (const [image, sx, sy, sw, sh, dx, dy, dw, dh] of draws) {
-    assert.match(image.source, /assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f|spartan_thrust_4f|sumo_walk_4f|sumo_slap_4f)\.png/);
-    assert.ok(sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= (image.source.includes("sumo_slap") ? 2816 : image.source.includes("sumo_walk") ? 1280 : image.source.includes("thrust") ? 3328 : image.source.includes("walk_4f") ? 768 : 192) && sy + sh <= (image.source.includes("sumo_slap") ? 496 : image.source.includes("sumo_walk") ? 336 : image.source.includes("thrust") ? 480 : 192));
-    if(image.source.includes('sumo_walk')) {assert.ok(Math.abs(dy/dh+316/336)<1e-10);assert.ok(Math.abs(dx/dw+160/320)<1e-10);} else if(image.source.includes('sumo_slap')) {assert.ok(Math.abs(dy/dh+476/496)<1e-10);assert.ok(Math.abs(dx/dw+256/704)<1e-10);} else if(image.source.includes('thrust')) { assert.ok(Math.abs(dy/dh+460/480)<1e-10); assert.ok(Math.abs(dx/dw+240/832)<1e-10); } else if(image.source.includes('walk_4f')) { const clip=api.SPRITES.player.poses.walk;const i=clip.frames.findIndex(f=>f[0]===sx);assert.equal(dy,-dh);assert.ok(Math.abs(dx + clip.anchors[i][0]*dh/sh)<1e-10);assert.ok(Math.abs(dh/sh-api.SPRITES.player.height*api.LAYOUT.spriteScale/144)<1e-10); } else { assert.equal(dy, -dh); assert.equal(dx, -dw / 2); } // 下端中央を足元に固定
+    assert.match(image.source, /assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f|spartan_thrust_4f|spartan_hit_4f|sumo_walk_4f|sumo_slap_4f)\.png/);
+    assert.ok(sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= (image.source.includes("spartan_hit") ? 2560 : image.source.includes("sumo_slap") ? 2816 : image.source.includes("sumo_walk") ? 1280 : image.source.includes("thrust") ? 3328 : image.source.includes("walk_4f") ? 768 : 192) && sy + sh <= (image.source.includes("spartan_hit") ? 544 : image.source.includes("sumo_slap") ? 496 : image.source.includes("sumo_walk") ? 336 : image.source.includes("thrust") ? 480 : 192));
+    if(image.source.includes('spartan_hit')) {assert.ok(Math.abs(dy/dh+516/544)<1e-10);assert.ok(Math.abs(dx/dw+320/640)<1e-10);} else if(image.source.includes('sumo_walk')) {assert.ok(Math.abs(dy/dh+316/336)<1e-10);assert.ok(Math.abs(dx/dw+160/320)<1e-10);} else if(image.source.includes('sumo_slap')) {assert.ok(Math.abs(dy/dh+476/496)<1e-10);assert.ok(Math.abs(dx/dw+256/704)<1e-10);} else if(image.source.includes('thrust')) { assert.ok(Math.abs(dy/dh+460/480)<1e-10); assert.ok(Math.abs(dx/dw+240/832)<1e-10); } else if(image.source.includes('walk_4f')) { const clip=api.SPRITES.player.poses.walk;const i=clip.frames.findIndex(f=>f[0]===sx);assert.equal(dy,-dh);assert.ok(Math.abs(dx + clip.anchors[i][0]*dh/sh)<1e-10);assert.ok(Math.abs(dh/sh-api.SPRITES.player.height*api.LAYOUT.spriteScale/144)<1e-10); } else { assert.equal(dy, -dh); assert.equal(dx, -dw / 2); } // 下端中央を足元に固定
     assert.ok(Math.abs(dw / dh - sw / sh) < 1e-10); // 元の縦横比
   }
   assert.equal(ctx.imageSmoothingEnabled, false);

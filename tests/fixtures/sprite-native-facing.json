@@ -22,5 +22,9 @@
   "sumo_slap_4f.png": {
     "nativeFacing": 1,
     "sha256": "ff947efa202b3c90cf5e42b864d184e899407ec83a2e692d1652cd63023c8b90"
+  },
+  "spartan_hit_4f.png": {
+    "nativeFacing": 1,
+    "sha256": "36311453390ae8fd2c0bfd341462bf863927a09bf33a7cf46ae7f8c29e9267ff"
   }
 }
