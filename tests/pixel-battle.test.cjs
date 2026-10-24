@@ -105,11 +105,30 @@ const step = time => { now = time; const calls = [...frames.values()]; frames.cl
   await api.play({ dataset: {}, getContext: () => null }, { winner: 'cpu' }).finished;
   await api.play({ dataset: {}, getContext: () => { throw new Error('Canvas unavailable'); } }, { winner: 'cpu' }).finished;
   assert.equal(frames.size + timers.size, 0);
+  for(const [i,t] of [3200,3325,3450,3575].entries()) {
+    const scene=api.sampleScene(t,'player');
+    api.drawScene(canvas,scene);
+    assert.equal(canvas.dataset.playerAttacking,'true');
+    assert.equal(Number(canvas.dataset.playerFrame),i);
+  }
+  api.drawScene(canvas,api.sampleScene(3700,'player'));
+  assert.equal(canvas.dataset.playerAttacking,'false');
+  const impact=api.sampleScene(3500,'player');
+  assert.ok(impact.hit>0); assert.equal(impact.cpu.pose,'damage');
+  assert.equal(api.spriteFrame('player',impact.player,3500).index,2);
+  assert.equal(api.sampleScene(3325,'player').hit,0);
+  assert.equal(api.sampleScene(3575,'player').hit,0);
+  const tip=api.projectActor(impact.player,'player').x+94;
+  const target=api.projectActor(impact.cpu,'cpu').x;
+  const targetHalf=api.SPRITES.cpu.height*api.LAYOUT.spriteScale*142/109/2;
+  assert.ok(tip>=target-targetHalf && tip<=target+targetHalf, '槍先が相手に届く');
+  assert.equal(api.spriteFrame('player',{...impact.player,facing:Math.PI},3500).flip,true);
+  assert.equal(api.spriteFrame('player',{...impact.player,attackTime:500},3700).animated,false);
   assert.ok(draws.length > 0);
   for (const [image, sx, sy, sw, sh, dx, dy, dw, dh] of draws) {
-    assert.match(image.source, /assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f)\.png/);
-    assert.ok(sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= (image.source.includes("walk_4f") ? 768 : 192) && sy + sh <= 192);
-    assert.equal(dy, -dh); assert.equal(dx, -dw / 2); // 下端中央を足元に固定
+    assert.match(image.source, /assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f|spartan_thrust_4f)\.png/);
+    assert.ok(sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= (image.source.includes("thrust") ? 3328 : image.source.includes("walk_4f") ? 768 : 192) && sy + sh <= (image.source.includes("thrust") ? 480 : 192));
+    if(image.source.includes('thrust')) { assert.ok(Math.abs(dy/dh+460/480)<1e-10); assert.ok(Math.abs(dx/dw+240/832)<1e-10); } else { assert.equal(dy, -dh); assert.equal(dx, -dw / 2); } // 下端中央を足元に固定
     assert.ok(Math.abs(dw / dh - sw / sh) < 1e-10); // 元の縦横比
   }
   assert.equal(ctx.imageSmoothingEnabled, false);

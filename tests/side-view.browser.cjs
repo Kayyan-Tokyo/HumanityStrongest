@@ -1,5 +1,5 @@
 const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=require('playwright');
-const inline=code=>code.replace(/\.\/assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f)\.png/g,(_,name)=>'data:image/png;base64,'+fs.readFileSync('assets/characters/'+name+'.png').toString('base64'));
+const inline=code=>code.replace(/\.\/assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f|spartan_thrust_4f)\.png/g,(_,name)=>'data:image/png;base64,'+fs.readFileSync('assets/characters/'+name+'.png').toString('base64'));
 const data=name=>'data:image/webp;base64,'+fs.readFileSync('assets/backgrounds/'+name+'.webp').toString('base64');
 const old=data('colosseum'),side=data('colosseum_side');
 const html=fs.readFileSync('index.html','utf8').replace("url('./assets/backgrounds/colosseum.webp')",()=>`url('${old}')`).replace("url('./assets/backgrounds/colosseum_side.webp')",()=>`url('${side}')`).replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<script>'+inline(fs.readFileSync(src.split('?')[0],'utf8'))+'</script>');

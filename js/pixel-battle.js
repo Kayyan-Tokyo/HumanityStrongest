@@ -5,7 +5,7 @@
   // 演出専用の固定配役。正式キャラクターのIDや能力とは対応させない。
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
-    player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, frames:[[31,34,153,145],[202,35,160,145],[414,14,150,166],[593,16,160,161]] } } },
+    player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, frames:[[31,34,153,145],[202,35,160,145],[414,14,150,166],[593,16,160,161]] } } },
     cpu: { src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{} }
   };
   // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
@@ -30,12 +30,12 @@
   })));
   // 経過時間でコマを選ぶ共通処理。速度変更は既存の演出時間に追従する。
   function spriteFrame(side, actor, time) {
-    const config = SPRITES[side], clip = actor.moving && config.poses[actor.pose];
-    const animated = Boolean(clip && images[side + ':' + actor.pose]);
-    const index = animated ? Math.floor(time * clip.fps / 1000) % clip.frames.length : 0;
+    const config = SPRITES[side], clip = config.poses[actor.pose] && (actor.moving || config.poses[actor.pose].once) && config.poses[actor.pose];
+    const animated = Boolean(clip && images[side + ':' + actor.pose] && (!clip.once || (actor.attackTime >= 0 && actor.attackTime < clip.duration)));
+    const index = animated ? clip.once ? Math.min(clip.frames.length - 1, Math.floor(actor.attackTime / (clip.duration / clip.frames.length))) : Math.floor(time * clip.fps / 1000) % clip.frames.length : 0;
     return { image:animated ? images[side + ':' + actor.pose] : images[side],
-      frame:animated ? clip.frames[index] : config.frame, index, animated,
-      flip:animated ? actor.direction < 0 : side === 'cpu' };
+      frame:animated ? clip.frames[index] : config.frame, index, animated, clip:animated ? clip : null,
+      flip:animated ? clip.once ? actor.facing === Math.PI : actor.direction < 0 : side === 'cpu' };
   }
   const GROUND_Y = 212;
   const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
@@ -63,6 +63,13 @@
       actors[defender].x += direction * Math.sin(clamp((progress - .4) / .6, 0, 1) * Math.PI) * 8;
       actors[attack].pose = 'attack';
       actors[defender].pose = progress >= .4 ? 'damage' : 'idle';
+      if (attack === 'player') {
+        actors.player.attackTime = progress * 1000 - 200;
+        actors.player.pose = progress >= .2 && progress < .7 ? 'attack' : 'idle';
+        actors.cpu.pose = progress >= .45 && progress < .7 ? 'damage' : 'idle';
+        hit = progress >= .45 && progress < .575 ? Math.sin((progress - .45) / .125 * Math.PI) : 0;
+      }
+
     }
     if (t >= 8000) {
       actors[loser].x += loser === 'cpu' ? 10 : -10;
@@ -127,19 +134,21 @@
   function drawSprite(ctx, actor, side, time) {
     const config = SPRITES[side];
     const selected = spriteFrame(side, actor, time), frame = selected.frame;
-    const height = config.height * LAYOUT.spriteScale, width = height * frame[2] / frame[3];
+    const height = config.height * LAYOUT.spriteScale * (selected.clip?.referenceHeight ? frame[3] / selected.clip.referenceHeight : 1), width = height * frame[2] / frame[3];
+    const dx = selected.clip?.anchor ? -selected.clip.anchor[0] * height / frame[3] : -width / 2;
+    const dy = selected.clip?.anchor ? -selected.clip.anchor[1] * height / frame[3] : -height;
     const fallen = actor.pose === 'fall' || actor.pose === 'defeated';
     // 影と画像が同じ足元座標を使う。歩行中も上下へ浮かせない。
     ctx.fillStyle = '#00000066';
-    ctx.beginPath(); ctx.ellipse(actor.x, actor.y + 1, width * .30, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(actor.x, actor.y + 1, config.height * LAYOUT.spriteScale * config.frame[2] / config.frame[3] * .30, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.save(); ctx.translate(Math.round(actor.x), Math.round(actor.y) - (fallen ? width / 2 * Math.sin(actor.fall * .18) : 0));
     if (fallen) { ctx.rotate((side === 'player' ? -1 : 1) * actor.fall * .18); ctx.scale(1, 1 - actor.fall * .60); }
     if (actor.pose === 'walk' && !selected.animated) ctx.scale(1, actor.frame ? .98 : 1);
-    if (actor.pose === 'attack') { ctx.rotate(side === 'player' ? .07 : -.07); ctx.scale(1.04, .98); }
+    if (actor.pose === 'attack' && !selected.clip?.once) { ctx.rotate(side === 'player' ? .07 : -.07); ctx.scale(1.04, .98); }
     if (actor.pose === 'damage') ctx.rotate(side === 'player' ? -.08 : .08);
     if (selected.flip) ctx.scale(-1, 1);
-    ctx.drawImage(selected.image, ...frame, -width / 2, -height, width, height);
-    if (actor.pose === 'attack' || actor.pose === 'damage') {
+    ctx.drawImage(selected.image, ...frame, dx, dy, width, height);
+    if ((actor.pose === 'attack' && !selected.clip?.once) || actor.pose === 'damage') {
       ctx.fillStyle = actor.pose === 'attack' ? '#ffe2a2' : '#ffb476';
       ctx.fillRect(side === 'cpu' ? -width / 2 - 3 : width / 2, -height / 2, 3, 3);
     }
@@ -163,11 +172,13 @@
       actor.direction = Math.sign(b.x - a.x);
       const selected = spriteFrame(side, actor, scene.time);
       canvas.dataset[side + 'Frame'] = String(selected.index);
-      canvas.dataset[side + 'Walking'] = String(selected.animated);
+      canvas.dataset[side + 'Walking'] = String(selected.animated && actor.pose === 'walk');
+      canvas.dataset[side + 'Attacking'] = String(selected.animated && actor.pose === 'attack');
       drawActor(ctx, actor, side, scene.time);
     }
     if (scene.hit > 0) {
-      const x = (scene.player.x + scene.cpu.x) / 2, y = GROUND_Y - 30;
+      const thrust = scene.player.pose === 'attack' && images['player:attack'];
+      const x = thrust ? projectActor(scene.player,'player').x + 94 : (scene.player.x + scene.cpu.x) / 2, y = GROUND_Y - (thrust ? 48 : 30);
       ctx.globalAlpha = scene.hit; ctx.fillStyle = '#ffe8a1';
       ctx.fillRect(x - 6, y - 1, 12, 2); ctx.fillRect(x - 1, y - 6, 2, 12);
       ctx.globalAlpha = 1;
