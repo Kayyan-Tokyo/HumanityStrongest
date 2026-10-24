@@ -1,0 +1,67 @@
+const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
+let now = 0, serial = 0, timers = new Map(), frames = new Map();
+const math = Object.create(Math); math.random = () => { throw new Error('演出による乱数消費'); };
+const context = vm.createContext({ window: {}, Math: math, performance: { now: () => now },
+  requestAnimationFrame: cb => { const id = ++serial; frames.set(id, cb); return id; },
+  cancelAnimationFrame: id => frames.delete(id),
+  setTimeout: (cb, ms) => { const id = ++serial; timers.set(id, { cb, at: now + ms }); return id; },
+  clearTimeout: id => timers.delete(id)
+});
+vm.runInContext(fs.readFileSync('js/pixel-battle.js', 'utf8'), context);
+const api = context.window.HumanityPixelBattle;
+for (const winner of ['player', 'cpu']) {
+  const poses = { player: new Set(), cpu: new Set() }, phases = new Set();
+  for (let t = 0; t <= 10000; t += 10) {
+    const s = api.sampleScene(t, winner); phases.add(s.phase);
+    for (const side of ['cpu', 'player']) {
+      const a = s[side]; poses[side].add(a.pose);
+      // スプライト全体と横倒し時の余白を含めて砂地の内側に収める。
+      assert.ok(a.x >= 88 && a.x <= 220 && a.y >= 70 && a.y <= 165);
+      if (['fall', 'defeated'].includes(a.pose)) assert.notEqual(side, winner);
+      if (a.pose === 'victory') assert.equal(side, winner);
+    }
+    if (s.player.pose === 'attack' || s.cpu.pose === 'attack') {
+      assert.ok(Math.hypot(s.player.x - s.cpu.x, s.player.y - s.cpu.y) < 48, '離れたまま攻撃しない');
+    }
+  }
+  assert.ok(phases.has('circle') && phases.has('retreat'));
+  for (const side of ['cpu', 'player']) for (const pose of ['idle', 'walk', 'attack', 'damage']) assert.ok(poses[side].has(pose));
+  assert.equal(api.sampleScene(10000, winner)[winner].pose, 'victory');
+  assert.equal(api.sampleScene(10000, winner)[winner === 'player' ? 'cpu' : 'player'].pose, 'defeated');
+}
+const ctx = new Proxy({}, { get: (o, p) => o[p] || (() => {}) });
+const canvas = { dataset: {}, getContext: () => ctx };
+const reset = () => { now = 0; timers.clear(); frames.clear(); };
+const step = time => { now = time; const calls = [...frames.values()]; frames.clear(); calls.forEach(cb => cb(time)); };
+(async () => {
+  for (const [speed, duration] of [[1, 10000], [2, 5000]]) {
+    reset(); const run = api.play(canvas, { winner: 'cpu', speed }); let done = false;
+    run.finished.then(() => { done = true; });
+    step(duration - 1); await Promise.resolve(); assert.equal(done, false);
+    step(duration); await run.finished;
+    assert.equal(canvas.dataset.winner, 'cpu'); assert.equal(frames.size + timers.size, 0);
+  }
+  reset();
+  const changing = api.play(canvas, { winner: 'player' });
+  let changingDone = false; changing.finished.then(() => { changingDone = true; });
+  step(2000); changing.setSpeed(2); step(4000); changing.setSpeed(1);
+  step(7999); await Promise.resolve(); assert.equal(changingDone, false);
+  // 2秒×1 + 2秒×2 + 4秒×1 = 10秒の演出時間。
+  step(8000); await changing.finished; assert.equal(canvas.dataset.winner, 'player');
+  reset();
+  const dropped = api.play(canvas, { winner: 'cpu' }); step(9800); assert.equal(canvas.dataset.scene, 'victory');
+  step(15000); await dropped.finished; assert.equal(frames.size + timers.size, 0);
+  reset();
+  const watchdog = api.play(canvas, { winner: 'player', speed: 2 });
+  now = 5250; [...timers.values()][0].cb(); await watchdog.finished; assert.equal(frames.size + timers.size, 0);
+  reset();
+  const skipped = api.play(canvas, { winner: 'cpu' }); skipped.skip(); skipped.skip(); await skipped.finished;
+  assert.equal(canvas.dataset.winner, 'cpu'); assert.equal(frames.size + timers.size, 0);
+  reset();
+  await api.play(canvas, { winner: 'player', instant: true }).finished;
+  assert.equal(frames.size + timers.size, 0);
+  await api.play({ dataset: {}, getContext: () => null }, { winner: 'cpu' }).finished;
+  await api.play({ dataset: {}, getContext: () => { throw new Error('Canvas unavailable'); } }, { winner: 'cpu' }).finished;
+  assert.equal(frames.size + timers.size, 0);
+  console.log('PASS: 2002時点の砂地内/攻撃距離・6ポーズ・確定勝者/敗者のみ転倒・乱数消費ゼロ・1倍10秒/2倍5秒・途中の速度変更・遅延フレーム/期限・スキップ/Canvas未対応');
+})().catch(e => { console.error(e); process.exitCode = 1; });
