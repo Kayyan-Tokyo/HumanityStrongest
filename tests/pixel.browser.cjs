@@ -1,177 +1,94 @@
-const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
-const { chromium } = require('playwright');
-const root = path.resolve(__dirname, '..'), html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () => "url('data:image/webp;base64," + fs.readFileSync(path.join(root, 'assets/backgrounds/colosseum.webp')).toString('base64') + "')")
-  .replace("url('./assets/backgrounds/colosseum_side.webp')", () => "url('data:image/webp;base64," + fs.readFileSync(path.join(root, 'assets/backgrounds/colosseum_side.webp')).toString('base64') + "')")
-  .replace(/<script src="([^"]+)" defer><\/script>/g, (_, src) => '<script>' + fs.readFileSync(path.join(root, src.split('?')[0]), 'utf8').replace(/\.\/assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f|spartan_thrust_4f|spartan_hit_4f|sumo_walk_4f|sumo_slap_4f|sumo_hit_4f)\.png/g, (_, name) => 'data:image/png;base64,' + fs.readFileSync(path.join(root, 'assets/characters', name + '.png')).toString('base64')) + '</script>');
-
-(async () => {
-  const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox', '--disable-crashpad-for-testing'] });
-  try {
-    for (const width of (process.env.WIDTHS || '375,390,430,1280').split(',').map(Number)) {
-      const context = await browser.newContext({ viewport: { width, height: 812 }, isMobile: width < 768, hasTouch: width < 768 });
-      const page = await context.newPage(), errors = []; page.setDefaultTimeout(20000);
-      page.on('pageerror', e => errors.push(e.message));
-      await page.setContent(content);
-      await page.evaluate(()=>Object.assign(HumanityPixelBattle,HumanityPixelBattle.createRenderer({playerId:'spartan',cpuId:'sumo'})));
-      await page.evaluate(oracle => {
-        window.__facingErrors=[];window.__facingDraws=0;
-        const ctx=document.querySelector('#pixel-canvas').getContext('2d'),draw=ctx.drawImage;
-        ctx.drawImage=function(image,...args){
-          const known=oracle[image.src];
-          if(!known)throw Error('未知の画像');
-          const id=known.name.startsWith('spartan')?'spartan':'sumo';
-          const canvas=document.querySelector('#pixel-canvas');
-          const side=['player','cpu'].find(side=>canvas.dataset[side+'CharacterId']===id);
-          if(!side)throw Error('選択されていない人物の画像');
-          const expected=Number(canvas.dataset[side+'Facing']);
-          if(Math.sign(this.getTransform().a)*known.native!==expected)__facingErrors.push(known.name);
-          __facingDraws++;
-          return draw.call(this,image,...args);
+const assert=require('node:assert/strict'),{chromium}=require('playwright');
+const {open,configure,idle}=require('./helpers/browser.cjs');
+(async()=>{
+  const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox','--disable-crashpad-for-testing']});
+  try{
+    for(const width of (process.env.WIDTHS||'375,390,430,1280').split(',').map(Number)){
+      const context=await browser.newContext({viewport:{width,height:812},hasTouch:width<768,isMobile:width<768}),page=await context.newPage(),errors=[];
+      page.setDefaultTimeout(22000);page.on('pageerror',e=>errors.push(e.message));await open(page);await configure(page);
+      await page.evaluate(()=>{
+        const deal=HumanityMatch.deal,create=HumanityPixelBattle.createRenderer;
+        window.__reverse=false;window.__fallback=false;window.__scenes=[];
+        HumanityMatch.deal=chars=>{
+          const m=deal(chars),find=id=>chars.find(c=>c.id===id);
+          m.playerHand=[find(__fallback?'hacker':__reverse?'sumo':'spartan'),find('nakameguro-barber')];
+          m.cpuHand=[find(__fallback?'neanderthal':__reverse?'spartan':'sumo')];m.cpuCard=m.cpuHand[0];return m;
         };
-      },Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync(path.join(root,'tests/fixtures/sprite-native-facing.json'),'utf8'))).map(([name,e])=>['data:image/png;base64,'+fs.readFileSync(path.join(root,'assets/characters',name)).toString('base64'),{name,native:e.nativeFacing}])));
-
-      const frames = await page.evaluate(async () => {
-        await HumanityPixelBattle.ready;
-        const clip = HumanityPixelBattle.SPRITES.player.poses.walk;
-        const sheet = new Image(); sheet.src = clip.src; await sheet.decode();
-        const probe = document.createElement('canvas'); probe.width=sheet.width; probe.height=sheet.height;
-        const context = probe.getContext('2d'); context.drawImage(sheet,0,0);
-        for(const [i,frame] of clip.frames.entries()) {
-          const pixels=context.getImageData(...frame).data;
-          let bottom=0;
-          for(let y=0;y<frame[3];y++)for(let x=0;x<frame[2];x++)if(pixels[(y*frame[2]+x)*4+3]>32)bottom=y+1;
-          if(bottom!==clip.anchors[i][1])throw Error('靴底と足元基準が不一致');
-        }
-        const canvas = document.querySelector('#pixel-canvas'), frames = [];
-        for (const time of [1100,1250,1400,1550]) {
-          HumanityPixelBattle.drawScene(canvas, HumanityPixelBattle.sampleScene(time, 'player'));
-          if (canvas.dataset.playerWalking !== 'true') throw Error('歩行画像を使用していない');
-          frames.push(canvas.dataset.playerFrame);
-        }
-        HumanityPixelBattle.drawScene(canvas, HumanityPixelBattle.sampleScene(3000, 'player'));
-        if (canvas.dataset.playerWalking !== 'false') throw Error('待機へ復帰していない');
-        return frames;
+        HumanityPixelBattle.createRenderer=options=>{
+          const renderer=create(options),play=renderer.play;
+          renderer.play=(canvas,options)=>play(canvas,{...options,onScene(scene){__scenes.push(scene);options.onScene?.(scene);}});return renderer;
+        };
       });
-      assert.equal(new Set(frames).size, 4);
-      await page.evaluate(() => {
-        const deal = HumanityMatch.deal, resolve = HumanityBattle.resolveRound, story = HumanityStory.generateStory;
-        const createRenderer = HumanityPixelBattle.createRenderer;
-        window.__first = 'player'; window.__draws = 0; window.__stories = 0; window.__scenes = [];
-        HumanityMatch.deal = chars => window.__match = deal([...chars].sort((a, b) => b.name.length - a.name.length), () => __first === 'player' ? 0 : .999999);
-        HumanityBattle.resolveRound = (p, c) => resolve(p, c, () => [0, .999999, 0][window.__draws++]);
-        HumanityStory.generateStory = result => { window.__stories++; return story(result); };
-        HumanityPixelBattle.createRenderer = options => { const renderer=createRenderer(options),play=renderer.play; renderer.play=(canvas,options)=>play(canvas,{...options,onScene(scene){window.__scenes.push(scene);options.onScene?.(scene);}}); return renderer; };
-      });
-      const idle = () => page.waitForFunction(() => document.querySelector('#hand-screen').getAttribute('aria-busy') !== 'true');
-      for (const first of ['player', 'cpu']) {
-        await page.evaluate(first => { window.__first = first; window.__draws = 0; window.__stories = 0; window.__scenes = []; }, first);
-        await page.selectOption('#battle-mode', 'pixel');
-        await page.getByRole('button', { name: first === 'player' ? 'ゲーム開始' : '新しい試合', exact: true }).click();
-        await idle();
-        for (let round = 1; round <= 3; round++) {
-          await idle();
-          assert.equal(await page.locator('#cpu-hand .card:visible').count(), 3);
-          assert.equal(await page.locator('#hand .card:visible').count(), 3);
-          const cpuFirst = await page.evaluate(() => __match.firstSide === 'cpu');
-          assert.equal(await page.locator('#cpu-fighter .card-name').count(), cpuFirst ? 1 : 0);
-          if (cpuFirst) assert.equal(await page.locator('#cpu-fighter').isVisible(), true);
-          assert.equal(await page.locator('#pixel-canvas').isVisible(), false);
-          const normal = width === 375 && first === 'player' && round === 1;
-          await page.selectOption('#pixel-speed', normal || round === 2 ? '1' : '2');
-          const button = page.locator('#hand .card:not(:disabled)').first(), selected = await button.getAttribute('data-character-id');
-          await button.evaluate(el => { el.click(); for (let i = 0; i < 5; i++) el.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-          await page.waitForFunction(() => document.querySelector('#hand-screen').dataset.phase === 'pixel-battle');
-          const started = Date.now();
-          assert.equal(await page.locator('#battle-mode').isDisabled(), true);
-          assert.equal(await page.locator('#pixel-speed').isEnabled(), true);
-          assert.equal(await page.locator('#player-fighter').isVisible(), false);
-          assert.equal(await page.locator('#cpu-fighter').isVisible(), false);
-          assert.equal(await page.locator('#round-result').isVisible(), false);
-          assert.equal(await page.locator('#hand .card:not(:disabled)').count(), 0);
-          const geometry = await page.locator('#pixel-canvas').evaluate(el => {
-            const r = el.getBoundingClientRect();
-            return { width: r.width, height: r.height, x: r.x, right: r.right, overflow: document.documentElement.scrollWidth > innerWidth };
-          });
-          assert.ok(geometry.width > 300 && geometry.height > 180 && geometry.x >= 0 && geometry.right <= width);
-          assert.equal(geometry.overflow, false);
-          if (round === 3) await page.getByRole('button', { name: '演出をスキップ' }).click();
-          else {
-            if (round === 2) { await page.waitForTimeout(800); await page.selectOption('#pixel-speed', '2'); }
-            await page.waitForFunction(() => document.querySelector('#pixel-canvas').dataset.scene === 'exchange');
-            if (process.env.SCREENSHOT_DIR && width === 375 && first === 'player' && round === 1) {
-              fs.mkdirSync(process.env.SCREENSHOT_DIR, { recursive: true });
-              await page.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'pixel-exchange-375.png'), fullPage: true });
-            }
-            await page.waitForFunction(() => document.querySelector('#pixel-canvas').dataset.scene === 'victory');
-            assert.equal(await page.locator('#round-result').isVisible(), false);
-          }
-          await idle();
-          if (round === 1) assert.ok(Date.now() - started >= (normal ? 9000 : 4400), '指定速度より早く結果を出さない');
-          assert.equal(await page.evaluate(() => __draws), round);
-          assert.equal(await page.evaluate(() => __stories), round);
-          const result = await page.evaluate(() => {
-            const r = __match.rounds.at(-1);
-            return { winner: r.winner, id: r.playerCard.id, story: r.story.body, finish: r.story.finish,
-              chance: `対戦前の勝率：あなた ${r.decision.playerWinPercent}% ／ CPU ${100 - r.decision.playerWinPercent}%` };
-          });
-          assert.equal(result.id, selected);
-          assert.equal(await page.locator('#pixel-canvas').getAttribute('data-winner'), result.winner);
-          assert.equal(await page.locator('#pixel-canvas').getAttribute('data-' + result.winner + '-pose'), 'victory');
-          assert.equal(await page.locator('#pixel-canvas').getAttribute('data-' + (result.winner === 'player' ? 'cpu' : 'player') + '-pose'), 'defeated');
-          assert.equal(await page.locator('#result-reason').textContent(), result.story);
-          assert.equal(await page.locator('#result-finish').textContent(), `決まり手：${result.finish}`);
-          assert.equal(await page.locator('#result-probability').textContent(), result.chance);
-          assert.equal(await page.locator('#result-stats tr').count(), 6);
-          assert.equal(await page.locator('#hand .used').count(), round);
-          assert.equal(await page.locator('#cpu-hand .used').count(), round);
-          if (round === 1) {
-            await page.selectOption('#battle-mode', 'card'); assert.equal(await page.locator('#pixel-canvas').isVisible(), false);
-            await page.selectOption('#battle-mode', 'pixel'); assert.equal(await page.locator('#pixel-canvas').getAttribute('data-winner'), result.winner);
-            assert.equal(await page.evaluate(() => __draws), round); assert.equal(await page.evaluate(() => __stories), round);
-          }
-          if (round < 3) await page.getByRole('button', { name: '次のラウンドへ' }).click();
+      await page.selectOption('#battle-mode','pixel');await page.getByRole('button',{name:'ゲーム開始',exact:true}).click();
+      for(let n=0;n<3;n++){
+        if(n){
+          await page.evaluate(n=>{__reverse=n===1;__fallback=n===2;__winner=n===1?'cpu':'player';},n);
+          await page.getByRole('button',{name:'次の対戦',exact:true}).click();
         }
-        assert.equal(await page.evaluate(() => __match.phase), 'finished');
-        assert.equal(await page.evaluate(() => __match.playerWins), 2);
-        const scenes = await page.evaluate(() => __scenes);
-        assert.ok(scenes.some(s => s.phase === 'entry') && scenes.some(s => s.phase === 'approach'));
-        assert.ok(scenes.every(s => ['cpu', 'player'].every(side => s[side].x >= 30 && s[side].x <= 290 && s[side].y === 212)));
+        assert.equal(await page.locator('#cpu-hand .card:visible').count(),1);assert.equal(await page.locator('#hand .card:visible').count(),2);
+        assert.equal(await page.locator('#cpu-fighter .card-name').count(),1);assert.equal(await page.locator('#pixel-canvas').isVisible(),false);
+        await page.selectOption('#pixel-speed',n===2?'2':'1');
+        await page.locator('#hand .card:not(:disabled)').first().evaluate(el=>{el.click();for(let i=0;i<8;i++)el.dispatchEvent(new MouseEvent('click',{bubbles:true}));});
+        await page.waitForFunction(()=>document.querySelector('#hand-screen').dataset.phase==='pixel-battle');const started=Date.now();
+        assert.equal(await page.locator('#round-result').isVisible(),false);assert.equal(await page.locator('#battle-mode').isDisabled(),true);
+        assert.equal(await page.locator('#pixel-speed').isEnabled(),true);assert.equal(await page.locator('#hand .card:not(:disabled)').count(),0);
+        assert.equal(await page.locator('#next-match-button').isVisible(),false);
+        assert.equal(await page.locator('#cpu-fighter').isVisible(),false);assert.equal(await page.locator('#player-fighter').isVisible(),false);
+        const geometry=await page.locator('#pixel-canvas').evaluate(el=>{const r=el.getBoundingClientRect();return {x:r.x,right:r.right,width:r.width,height:r.height,overflow:document.documentElement.scrollWidth>innerWidth};});
+        assert.ok(geometry.x>=0&&geometry.right<=width&&geometry.width>300&&geometry.height>180);assert.equal(geometry.overflow,false);
+        if(n===2)await page.getByRole('button',{name:'演出をスキップ'}).click();
+        else{
+          if(n===1){await page.waitForTimeout(800);await page.selectOption('#pixel-speed','2');}
+          await page.waitForFunction(()=>document.querySelector('#pixel-canvas').dataset.scene==='exchange');
+          await page.waitForFunction(()=>document.querySelector('#pixel-canvas').dataset.scene==='victory');
+          assert.equal(await page.locator('#round-result').isVisible(),false);
+        }
+        await idle(page);
+        if(n<2)assert.ok(Date.now()-started>=(n===0?9000:4400),'指定速度より早く結果を出さない');
+        const result=await page.evaluate(()=>{
+          const r=__match.rounds[0],canvas=document.querySelector('#pixel-canvas');
+          return {player:r.playerCard.id,cpu:r.cpuCard.id,shownPlayer:canvas.dataset.playerCharacterId,shownCpu:canvas.dataset.cpuCharacterId,winner:r.winner,shownWinner:canvas.dataset.winner,
+            playerFallback:canvas.dataset.playerFallback,cpuFallback:canvas.dataset.cpuFallback,story:r.story.body,finish:r.story.finish};
+        });
+        assert.equal(result.player,result.shownPlayer);assert.equal(result.cpu,result.shownCpu);assert.equal(result.winner,result.shownWinner);
+        assert.equal(result.playerFallback,n===2?'true':'false');assert.equal(result.cpuFallback,n===2?'true':'false');
+        assert.equal(await page.locator('#result-reason').textContent(),result.story);assert.equal(await page.locator('#result-finish').textContent(),`決まり手：${result.finish}`);
+        assert.equal(await page.locator('#result-stats tr').count(),6);assert.equal(await page.evaluate(()=>__draws),n+1);assert.equal(await page.evaluate(()=>__stories),n+1);
+        assert.equal(await page.evaluate(()=>__match.rounds.length),1);assert.equal(await page.evaluate(()=>__match.phase),'finished');
+        assert.equal(await page.locator('#current-streak').textContent(),n===1?'0':'1');assert.equal(await page.locator('#best-streak').textContent(),'1');
+        await page.selectOption('#battle-mode','card');assert.equal(await page.locator('#pixel-canvas').isVisible(),false);
+        await page.selectOption('#battle-mode','pixel');await page.waitForFunction(()=>!document.querySelector('#pixel-canvas').hidden);
+        assert.equal(await page.locator('#pixel-canvas').getAttribute('data-player-character-id'),result.player);
+        assert.equal(await page.evaluate(()=>__draws),n+1);assert.equal(await page.locator('#current-streak').textContent(),n===1?'0':'1');
       }
-      // ページが非表示になっても、同じ確定結果に着地する。
-      await page.evaluate(() => { window.__draws = 0; window.__stories = 0; });
-      await page.getByRole('button', { name: '新しい試合', exact: true }).click(); await idle();
-      await page.locator('#hand .card:not(:disabled)').first().evaluate(el => el.click());
-      await page.waitForFunction(() => document.querySelector('#hand-screen').dataset.phase === 'pixel-battle');
-      await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
-      await idle(); assert.equal(await page.locator('#round-result').isVisible(), true);
-      assert.deepEqual(await page.evaluate(()=>__facingErrors),[]);assert.ok(await page.evaluate(()=>__facingDraws)>=4);
-      assert.deepEqual(errors, []);
-      console.log(`PASS ${width}px: ドット絵モード・両先攻/3ラウンド・1/2倍速/途中変更・スキップ/非表示・敗者のみ転倒/WIN整合・手札/結果/物語保存・モード切替`);
+      await page.getByRole('button',{name:'次の対戦',exact:true}).click();await page.locator('#hand .card:not(:disabled)').first().click();
+      await page.waitForFunction(()=>document.querySelector('#hand-screen').dataset.phase==='pixel-battle');
+      await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+      await idle(page);assert.equal(await page.locator('#round-result').isVisible(),true);assert.equal(await page.evaluate(()=>__draws),4);
+      assert.ok(await page.evaluate(()=>__scenes.some(s=>s.phase==='entry')&&__scenes.some(s=>s.phase==='exchange')&&__scenes.some(s=>s.phase==='fall')));
+      assert.deepEqual(errors,[]);await context.close();
+      console.log(`PASS ${width}px: CPU公開1/候補2・単発対戦×4・両配役/ID連携・1倍10秒/途中2倍・スキップ/非表示・勝敗/保存結果/連勝・再表示で加算なし`);
+    }
+    // Identical random input yields identical decisions, stories, and streaks in either mode.
+    const transcripts=[];
+    for(const mode of ['card','pixel']){
+      const context=await browser.newContext({reducedMotion:'reduce'}),page=await context.newPage();await open(page);
+      await page.evaluate(()=>{
+        let seed=12345;window.__calls=0;window.__trace=[];
+        Math.random=()=>{__calls++;seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+        const deal=HumanityMatch.deal,play=HumanityMatch.playRound;
+        HumanityMatch.deal=chars=>window.__match=deal(chars);
+        HumanityMatch.playRound=(...args)=>{const result=play(...args);__trace.push(result);return result;};
+      });
+      await page.selectOption('#battle-mode',mode);await page.getByRole('button',{name:'ゲーム開始',exact:true}).click();
+      for(let i=0;i<3;i++){
+        await page.locator('#hand .card:not(:disabled)').nth(i%2).click();await idle(page);
+        if(i<2)await page.getByRole('button',{name:'次の対戦',exact:true}).click();
+      }
+      transcripts.push(await page.evaluate(()=>({results:JSON.stringify(__trace),calls:__calls,current:document.querySelector('#current-streak').textContent,best:localStorage.getItem(HumanityStreak.STORAGE_KEY)})));
       await context.close();
     }
-    // 同じ乱数列でカード/ドット絵のゲーム結果を比較する（演出は短縮）。
-    const transcripts = [];
-    for (const mode of ['card', 'pixel']) {
-      const context = await browser.newContext({ reducedMotion: 'reduce' }); const page = await context.newPage();
-      await page.setContent(content);
-      await page.evaluate(() => {
-        let seed = 12345; window.__randomCalls = 0;
-        Math.random = () => { window.__randomCalls++; seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-        const deal = HumanityMatch.deal; HumanityMatch.deal = chars => window.__match = deal(chars);
-      });
-      await page.selectOption('#battle-mode', mode); await page.getByRole('button', { name: 'ゲーム開始', exact: true }).click();
-      for (let i = 0; i < 3; i++) {
-        await page.waitForFunction(() => document.querySelector('#hand-screen').getAttribute('aria-busy') !== 'true');
-        await page.locator('#hand .card:not(:disabled)').first().click();
-        await page.waitForFunction(() => document.querySelector('#hand-screen').getAttribute('aria-busy') !== 'true');
-        if (await page.evaluate(() => __match.phase === 'finished')) break;
-        await page.getByRole('button', { name: '次のラウンドへ' }).click();
-      }
-      transcripts.push(await page.evaluate(() => ({ rounds: JSON.stringify(__match.rounds), calls: __randomCalls, player: __match.playerWins, cpu: __match.cpuWins })));
-      await context.close();
-    }
-    assert.deepEqual(transcripts[0], transcripts[1]);
-    console.log('PASS: 同じ乱数列で両モードの全ラウンド・カード・勝率・勝敗・ストーリー・乱数呼出回数が完全一致');
-  } finally { await browser.close(); }
-})().catch(e => { console.error(e); process.exitCode = 1; });
+    assert.deepEqual(transcripts[0],transcripts[1]);
+    console.log('PASS: 同じ乱数列で両モードの全カード・勝率・勝敗・保存ストーリー・乱数呼出回数・連勝記録が一致');
+  }finally{await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

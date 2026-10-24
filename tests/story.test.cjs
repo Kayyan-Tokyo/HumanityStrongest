@@ -144,7 +144,7 @@ const result=m.playRound(match,match.playerHand[0].id,(p,c)=>b.resolveRound(p,c,
 assert.equal(generated,1);assert.equal(draws,1);
 const saved=result.story;assert.equal(match.rounds[0].story,saved);
 assert.throws(()=>m.playRound(match,match.playerHand[1].id));assert.equal(generated,1);assert.equal(draws,1);
-m.nextRound(match,()=>0);
+m.deal(characters,()=>0);
 assert.equal(match.rounds[0].story,saved);assert.equal(generated,1);
 const body=saved.body;
 match.rounds[0].playerCard.name='変更テスト';
