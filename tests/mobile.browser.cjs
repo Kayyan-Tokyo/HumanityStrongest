@@ -11,11 +11,13 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
 (async()=>{
   const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',headless:true,args:['--no-sandbox','--disable-crashpad-for-testing']});
   try{
-    for(const width of [320,375,390,430,768,1280]){
-      const context=await browser.newContext({viewport:{width,height:812},isMobile:width<768,hasTouch:width<768});
+    for(const width of (process.env.WIDTHS?process.env.WIDTHS.split(',').map(Number):[320,375,390,430,768,1280])){
+      const context=await browser.newContext({viewport:{width,height:812},reducedMotion:process.env.REDUCED_MOTION?'reduce':'no-preference',isMobile:width<768,hasTouch:width<768});
       const page=await context.newPage();page.setDefaultTimeout(5000);
+      const settled=()=>page.waitForFunction(()=>document.querySelector('#hand-screen').getAttribute('aria-busy')!=='true');
       const errors=[];page.on('pageerror',e=>errors.push(e.message));
       await page.setContent(content);
+      await page.evaluate(()=>{window.__moves=[];const animate=Element.prototype.animate;Element.prototype.animate=function(frames,options){window.__moves.push({id:this.id,duration:options.duration});return animate.call(this,frames,options);};});
       // 最長名を確実に配り、実際の計算式に境界乱数を注入して進行を決定的に検証。
       await page.evaluate(()=>{
         const deal=window.HumanityMatch.deal,resolve=window.HumanityBattle.resolveRound;
@@ -32,6 +34,7 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         });
       });
       await page.getByRole('button',{name:'ゲーム開始',exact:true}).click();
+      await settled();
       assert.equal(await page.locator('#hand .card').count(),3);assert.equal(await page.locator('#cpu-hand .card').count(),3);
       const geometry=await page.evaluate(()=>{
         const rect=s=>{const r=document.querySelector(s).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};};
@@ -54,6 +57,7 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
       const roster=await page.evaluate(()=>[...window.__match.playerHand,...window.__match.cpuHand].map(c=>c.id));
       assert.equal(new Set(roster).size,6);
       for(let round=1;round<=3;round++){
+        await settled();
         assert.equal(await page.locator('#round-result').isVisible(),false);
         assert.equal(await page.locator('#result-finish').textContent(),'');
         assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/公開/);
@@ -74,7 +78,17 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         assert.equal(await page.evaluate(()=>window.__roundDraws),round-1);
         const available=page.locator('#hand .card:not(:disabled)');assert.equal(await available.count(),4-round);
         const playerName=await available.first().locator('.card-name').textContent();
-        if(width<768)await available.first().tap();else await available.first().click();
+        if(round===1){
+          const locked=await available.first().evaluate(el=>{
+            el.click();
+            const busy=document.querySelector('#hand-screen').getAttribute('aria-busy')==='true';
+            if(busy)for(const id of ['fight-button','confirm-button','redeal-button','return-button'])for(let i=0;i<5;i++)document.getElementById(id).dispatchEvent(new MouseEvent('click',{bubbles:true}));
+            if(busy)for(const other of document.querySelectorAll('#hand .card'))for(let i=0;i<5;i++)other.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+            return busy;
+          });
+          assert.equal(locked,!process.env.REDUCED_MOTION);
+        }else if(width<768)await available.first().tap();else await available.first().click();
+        await settled();
         assert.equal(await page.locator('#player-fighter .card-name').textContent(),playerName);
         if(firstSide==='player'){
           assert.equal(await page.locator('#fight-button').isVisible(),false);
@@ -89,7 +103,15 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
           assert.equal(await page.locator('#fight-button').isDisabled(),false);
         }
         const fight=page.locator('#fight-button');if(width<768)await fight.tap();else await fight.click();
+        await settled();
         assert.match(await page.locator('#turn-status').textContent(),/でした/);
+        const flights=await page.evaluate(()=>window.__moves.filter(move=>move.duration===400).map(move=>move.id));
+        if(process.env.REDUCED_MOTION)assert.equal(flights.length,0);
+        else {
+          assert.equal(flights.length,round*2);
+          assert.deepEqual(flights.slice(-2),firstSide==='cpu'?['cpu-fighter','player-fighter']:['player-fighter','cpu-fighter']);
+          assert.equal(await page.evaluate(()=>window.__moves.filter(move=>move.duration===150).length),round*2);
+        }
         assert.equal(await page.locator('#round-result').isVisible(),true);assert.equal(await page.locator('#result-stats tr').count(),6);
         assert.equal(await page.locator('#hand .used').count(),round);assert.equal(await page.locator('#cpu-hand .used').count(),round);
         assert.equal(await page.locator('#hand .card:disabled').count(),3);
@@ -141,9 +163,12 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
       await page.getByRole('button',{name:'新しい試合',exact:true}).click();
       assert.equal(await page.locator('#hand .used').count(),0);
       for(let round=1;round<=2;round++){
+        await settled();
         await page.locator('#hand .card:not(:disabled)').first().click();
+        await settled();
         if(await page.locator('#confirm-button').isVisible())await page.locator('#confirm-button').click();
         await page.locator('#fight-button').click();
+        await settled();
         if(round===1)await page.getByRole('button',{name:'次のラウンドへ',exact:true}).click();
       }
       assert.match(await page.locator('#match-score').textContent(),/試合終了.*あなた 0勝.*CPU 2勝/);

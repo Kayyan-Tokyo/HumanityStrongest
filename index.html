@@ -177,6 +177,9 @@
     .battle-side--player { --attack-direction: -1; }
     .battle-side--cpu { --attack-direction: 1; }
     .battle-arena > .vs { align-self: center; margin: 0; font-size: clamp(1rem, 4vw, 2rem); }
+    .motion-choice, .moving-card { border-color: #ffbf60; box-shadow: 0 0 12px #ffbf6055; }
+    .fighter-slot { transform-origin: top left; position: relative; z-index: 2; }
+    .hand .card[aria-pressed="true"] { box-shadow: 0 0 0 2px #ffbf6066; }
     .fighter-slot { width: 100%; flex: 1; margin: 0 auto; perspective: 800px; min-width: 0; }
     .battle-arena .fighter-card, .battle-arena .card-back { min-height: 112px; height: auto; }
     .battle-arena .fighter-card { padding: 12px 16px; gap: 8px; }
@@ -267,11 +270,11 @@
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=readability-final-1" defer></script>
-  <script src="./js/battle.js?v=readability-final-1" defer></script>
-  <script src="./js/combat-styles.js?v=readability-final-1" defer></script>
-  <script src="./js/story.js?v=readability-final-1" defer></script>
-  <script src="./js/match.js?v=readability-final-1" defer></script>
-  <script src="./js/game.js?v=readability-final-1" defer></script>
+  <script src="./js/characters.js?v=card-motion-1" defer></script>
+  <script src="./js/battle.js?v=card-motion-1" defer></script>
+  <script src="./js/combat-styles.js?v=card-motion-1" defer></script>
+  <script src="./js/story.js?v=card-motion-1" defer></script>
+  <script src="./js/match.js?v=card-motion-1" defer></script>
+  <script src="./js/game.js?v=card-motion-1" defer></script>
 </body>
 </html>
