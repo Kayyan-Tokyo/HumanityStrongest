@@ -1,5 +1,5 @@
 const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=require('playwright');
-const inline=code=>code.replace(/\.\/assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f|spartan_thrust_4f|sumo_walk_4f|sumo_slap_4f)\.png/g,(_,name)=>'data:image/png;base64,'+fs.readFileSync('assets/characters/'+name+'.png').toString('base64'));
+const inline=code=>code.replace(/\.\/assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f|spartan_thrust_4f|spartan_hit_4f|sumo_walk_4f|sumo_slap_4f)\.png/g,(_,name)=>'data:image/png;base64,'+fs.readFileSync('assets/characters/'+name+'.png').toString('base64'));
 const data=name=>'data:image/webp;base64,'+fs.readFileSync('assets/backgrounds/'+name+'.webp').toString('base64');
 const old=data('colosseum'),side=data('colosseum_side');
 const html=fs.readFileSync('index.html','utf8').replace("url('./assets/backgrounds/colosseum.webp')",()=>`url('${old}')`).replace("url('./assets/backgrounds/colosseum_side.webp')",()=>`url('${side}')`).replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<script>'+inline(fs.readFileSync(src.split('?')[0],'utf8'))+'</script>');
@@ -17,7 +17,7 @@ const oracle=Object.fromEntries(Object.entries(fixture).map(([name,e])=>['data:i
   }
  }
  for(const pose of ['idle','walk','attack','damage','fall','victory','defeated'])if(!states.has(pose))throw Error('状態の検証不足');
- if(sources.size!==6)throw Error('全素材を検証していない');
+ if(sources.size!==Object.keys(oracle).length)throw Error('全素材を検証していない');
  // 同座標は直前の向きを保つ。
  const s=api.sampleScene(6000,'player');s.player.pose=s.cpu.pose='idle';s.player.x=235;s.cpu.x=85;expected={player:-1,cpu:1};api.drawScene(canvas,s);s.time++;s.player.x=178;s.cpu.x=142;api.drawScene(canvas,s);s.time++;api.drawScene(canvas,s);
  return draws;

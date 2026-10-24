@@ -5,7 +5,7 @@
   // 演出専用の固定配役。正式キャラクターのIDや能力とは対応させない。
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
-    player: { sourceFacing:1, src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, hitOffset:[94,48], anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, referenceHeight:144, anchors:[[80.5,142],[87,142],[81.5,145],[85.5,144]], frames:[[31,34,153,142],[202,35,160,142],[414,14,150,145],[593,16,160,144]] } } },
+    player: { sourceFacing:1, src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ damage:{ src:'./assets/characters/spartan_hit_4f.png', sourceFacing:1, once:true, timeField:'hitTime', duration:400, knockback:3, anchor:[320,516], referenceHeight:467, frames:[[0,0,640,544],[640,0,640,544],[1280,0,640,544],[1920,0,640,544]] }, attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, hitOffset:[94,48], anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, referenceHeight:144, anchors:[[80.5,142],[87,142],[81.5,145],[85.5,144]], frames:[[31,34,153,142],[202,35,160,142],[414,14,150,145],[593,16,160,144]] } } },
     cpu: { sourceFacing:-1, src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{ walk:{ src:'./assets/characters/sumo_walk_4f.png', sourceFacing:1, fps:6, anchor:[160,316], referenceHeight:300, frames:[[0,0,320,336],[320,0,320,336],[640,0,320,336],[960,0,320,336]] }, attack:{ src:'./assets/characters/sumo_slap_4f.png', sourceFacing:1, once:true, duration:500, hitOffset:[61,47], anchor:[256,476], referenceHeight:458, frames:[[0,0,704,496],[704,0,704,496],[1408,0,704,496],[2112,0,704,496]] } } }
   };
   // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
@@ -48,8 +48,9 @@
   // 経過時間でコマを選ぶ共通処理。速度変更は既存の演出時間に追従する。
   function spriteFrame(side, actor, time) {
     const config = SPRITES[side], clip = config.poses[actor.pose] && (actor.moving || config.poses[actor.pose].once) && config.poses[actor.pose];
-    const animated = Boolean(clip && images[side + ':' + actor.pose] && (!clip.once || (actor.attackTime >= 0 && actor.attackTime < clip.duration)));
-    const index = animated ? clip.once ? Math.min(clip.frames.length - 1, Math.floor(actor.attackTime / (clip.duration / clip.frames.length))) : Math.floor(time * clip.fps / 1000) % clip.frames.length : 0;
+    const elapsed = clip && actor[clip.timeField || 'attackTime'];
+    const animated = Boolean(clip && images[side + ':' + actor.pose] && (!clip.once || (elapsed >= 0 && elapsed < clip.duration)));
+    const index = animated ? clip.once ? Math.min(clip.frames.length - 1, Math.floor(elapsed / (clip.duration / clip.frames.length))) : Math.floor(time * clip.fps / 1000) % clip.frames.length : 0;
     return { image:animated ? images[side + ':' + actor.pose] : images[side],
       frame:animated ? clip.frames[index] : config.frame, index, animated, clip:animated ? clip : null,
       ...spriteOrientation(actor, (animated && clip.sourceFacing) || config.sourceFacing || 1) };
@@ -88,7 +89,8 @@
       } else {
         actors.cpu.attackTime = progress * 1000 - 200;
         actors.cpu.pose = progress >= .2 && progress < .7 ? 'attack' : 'idle';
-        actors.player.pose = progress >= .45 && progress < .7 ? 'damage' : 'idle';
+        actors.player.hitTime = progress * 1000 - 450;
+        actors.player.pose = progress >= .45 && progress < .85 ? 'damage' : 'idle';
         hit = progress >= .45 && progress < .575 ? Math.sin((progress - .45) / .125 * Math.PI) : 0;
       }
 
@@ -168,9 +170,9 @@
     if (fallen) { ctx.rotate(-actor.facingDirection * actor.fall * .18); ctx.scale(1, 1 - actor.fall * .60); }
     if (actor.pose === 'walk' && !selected.animated && !config.poses.walk) ctx.scale(1, actor.frame ? .98 : 1);
     if (actor.pose === 'attack' && !selected.clip?.once) { ctx.rotate(actor.facingDirection * .07); ctx.scale(1.04, .98); }
-    if (actor.pose === 'damage') ctx.rotate(-actor.facingDirection * .08);
+    if (actor.pose === 'damage' && !selected.clip?.once) ctx.rotate(-actor.facingDirection * .08);
     drawOrientedImage(ctx, selected, actor, ...frame, dx, dy, width, height);
-    if ((actor.pose === 'attack' && !selected.clip?.once) || actor.pose === 'damage') {
+    if ((actor.pose === 'attack' && !selected.clip?.once) || (actor.pose === 'damage' && !selected.clip?.once)) {
       ctx.fillStyle = actor.pose === 'attack' ? '#ffe2a2' : '#ffb476';
       ctx.fillRect(config.sourceFacing === -1 ? -width / 2 - 3 : width / 2, -height / 2, 3, 3);
     }
@@ -195,6 +197,10 @@
       actor.facingDirection = resolveFacing(actor,opponent,state.directions[side]);
       state.directions[side] = actor.facingDirection;
       actor.facing = actor.facingDirection === 1 ? 0 : Math.PI;
+      const reaction = SPRITES[side].poses[actor.pose];
+      if (reaction?.knockback && actor[reaction.timeField] >= 0 && actor[reaction.timeField] < reaction.duration) {
+        actor.x -= actor.facingDirection * reaction.knockback * Math.sin(actor[reaction.timeField] / reaction.duration * Math.PI);
+      }
     }
     for (const side of ['cpu', 'player'].sort((a, b) => scene[a].y - scene[b].y)) {
       const actor = actors[side];
