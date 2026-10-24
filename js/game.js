@@ -74,10 +74,11 @@
   function showPixelScene(result) {
     get('battle-arena').classList.add('pixel-active');
     get('pixel-canvas').hidden = false; get('pixel-legend').hidden = false;
-    get('pixel-canvas').setAttribute('aria-label', `青：あなたの${result.playerCard.name}、赤：CPUの${result.cpuCard.name}の自動戦闘`);
+    get('pixel-canvas').setAttribute('aria-label', `あなた：${result.playerCard.name}（スパルタ兵の仮画像）、CPU：${result.cpuCard.name}（力士の仮画像）の自動戦闘`);
   }
 
   async function pixelEffects(result) {
+    await window.HumanityPixelBattle.ready;
     showPixelScene(result);
     get('hand-screen').dataset.phase = 'pixel-battle';
     pixelRun = window.HumanityPixelBattle.play(get('pixel-canvas'), {

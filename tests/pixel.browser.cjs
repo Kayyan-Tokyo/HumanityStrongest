@@ -2,7 +2,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), path = re
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..'), html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () => "url('data:image/webp;base64," + fs.readFileSync(path.join(root, 'assets/backgrounds/colosseum.webp')).toString('base64') + "')")
-  .replace(/<script src="([^"]+)" defer><\/script>/g, (_, src) => '<script>' + fs.readFileSync(path.join(root, src.split('?')[0]), 'utf8') + '</script>');
+  .replace(/<script src="([^"]+)" defer><\/script>/g, (_, src) => '<script>' + fs.readFileSync(path.join(root, src.split('?')[0]), 'utf8').replace(/\.\/assets\/characters\/(spartan_idle|sumo_idle)\.png/g, (_, name) => 'data:image/png;base64,' + fs.readFileSync(path.join(root, 'assets/characters', name + '.png')).toString('base64')) + '</script>');
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox', '--disable-crashpad-for-testing'] });

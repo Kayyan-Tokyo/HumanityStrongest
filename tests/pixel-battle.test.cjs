@@ -2,6 +2,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 let now = 0, serial = 0, timers = new Map(), frames = new Map();
 const math = Object.create(Math); math.random = () => { throw new Error('演出による乱数消費'); };
 const context = vm.createContext({ window: {}, Math: math, performance: { now: () => now },
+  Image: class { set src(value) { this.source = value; this.onload(); } },
   requestAnimationFrame: cb => { const id = ++serial; frames.set(id, cb); return id; },
   cancelAnimationFrame: id => frames.delete(id),
   setTimeout: (cb, ms) => { const id = ++serial; timers.set(id, { cb, at: now + ms }); return id; },
@@ -17,6 +18,13 @@ for (const winner of ['player', 'cpu']) {
       const a = s[side]; poses[side].add(a.pose);
       // スプライト全体と横倒し時の余白を含めて砂地の内側に収める。
       assert.ok(a.x >= 88 && a.x <= 220 && a.y >= 70 && a.y <= 165);
+      const config = api.SPRITES[side], h = config.height, w = h * config.frame[2] / config.frame[3];
+      const angle = ['fall', 'defeated'].includes(a.pose) ? a.fall * Math.PI / 2 : 0;
+      for (const x of [-w / 2, w / 2]) for (const y of [-h, 0]) {
+        const px = Math.round(a.x) + x * Math.cos(angle) - y * Math.sin(angle);
+        const py = Math.round(a.y) + x * Math.sin(angle) + y * Math.cos(angle);
+        assert.ok(px >= 0 && px <= 320 && py >= 0 && py <= 200, '画像の四隅が切れない');
+      }
       if (['fall', 'defeated'].includes(a.pose)) assert.notEqual(side, winner);
       if (a.pose === 'victory') assert.equal(side, winner);
     }
@@ -29,7 +37,8 @@ for (const winner of ['player', 'cpu']) {
   assert.equal(api.sampleScene(10000, winner)[winner].pose, 'victory');
   assert.equal(api.sampleScene(10000, winner)[winner === 'player' ? 'cpu' : 'player'].pose, 'defeated');
 }
-const ctx = new Proxy({}, { get: (o, p) => o[p] || (() => {}) });
+const draws = [];
+const ctx = new Proxy({ drawImage: (...args) => draws.push(args) }, { get: (o, p) => p in o ? o[p] : (() => {}) });
 const canvas = { dataset: {}, getContext: () => ctx };
 const reset = () => { now = 0; timers.clear(); frames.clear(); };
 const step = time => { now = time; const calls = [...frames.values()]; frames.clear(); calls.forEach(cb => cb(time)); };
@@ -63,5 +72,13 @@ const step = time => { now = time; const calls = [...frames.values()]; frames.cl
   await api.play({ dataset: {}, getContext: () => null }, { winner: 'cpu' }).finished;
   await api.play({ dataset: {}, getContext: () => { throw new Error('Canvas unavailable'); } }, { winner: 'cpu' }).finished;
   assert.equal(frames.size + timers.size, 0);
+  assert.ok(draws.length > 0);
+  for (const [image, sx, sy, sw, sh, dx, dy, dw, dh] of draws) {
+    assert.match(image.source, /assets\/characters\/(spartan_idle|sumo_idle)\.png/);
+    assert.ok(sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= 192 && sy + sh <= 192);
+    assert.equal(dy, -dh); assert.equal(dx, -dw / 2); // 下端中央を足元に固定
+    assert.ok(Math.abs(dw / dh - sw / sh) < 1e-10); // 元の縦横比
+  }
+  assert.equal(ctx.imageSmoothingEnabled, false);
   console.log('PASS: 2002時点の砂地内/攻撃距離・6ポーズ・確定勝者/敗者のみ転倒・乱数消費ゼロ・1倍10秒/2倍5秒・途中の速度変更・遅延フレーム/期限・スキップ/Canvas未対応');
 })().catch(e => { console.error(e); process.exitCode = 1; });
