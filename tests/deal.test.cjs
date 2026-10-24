@@ -5,7 +5,7 @@ const vm = require('node:vm');
 // ライブラリなしのテスト用DOM。実画面のレイアウト検証は含まない。
 class Element {
   constructor(tag = 'div', id = '') {
-    this.tag = tag; this.id = id; this.children = []; this.dataset = {};
+    this.style={}; this.tag = tag; this.id = id; this.children = []; this.dataset = {};
     this.attributes = {}; this.listeners = {}; this.textContent = '';
     this.className = ''; this.hidden = false; this.disabled = false;
     this.classList = {
@@ -18,6 +18,7 @@ class Element {
   setAttribute(key, value) { this.attributes[key] = value; }
   addEventListener(event, handler) { this.listeners[event] = handler; }
   click() { if (!this.disabled) this.listeners.click?.(); }
+  getBoundingClientRect(){return {top:0,left:0,width:200,height:100,bottom:100};}
   focus() { this.focused = true; }
   scrollIntoView() { this.scrolled = true; }
   querySelectorAll(selector) {
@@ -58,79 +59,33 @@ const textTree = element => [element.textContent, ...Object.values(element.attri
 function assertNoStats() {
   for(const id of ['hand','cpu-hand','player-fighter','cpu-fighter']) assert.doesNotMatch(textTree(ids[id]), /STR|SPD|END|STK|GRP|SUB/);
 }
-ids['start-button'].click();
-assert.equal(cards().length,3); assert.equal(cpuCards().length,3);
-assert.equal(ids['fight-button'].disabled,true);
-ids['fight-button'].listeners.click();
-assert.equal(currentMatch.rounds.length,0);
-assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length,1);
-for(let i=0;i<3;i++){
-  const c=currentMatch.cpuHand[i];
-  assert.equal(cpuCards()[i].querySelector('.card-name').textContent,c.name);
-  assert.equal(cpuCards()[i].querySelector('.card-profile').textContent,`${c.age}歳 / ${c.height}cm / ${c.weight}kg`);
-}
-cards()[0].click();assert.match(ids['turn-status'].textContent,/選択済み/);
-cards()[0].click();assert.doesNotMatch(ids['turn-status'].textContent,/選択済み/);
-assert.equal(ids['fight-button'].disabled,true);
-function fight(winner){
-  nextWinner=winner;
-  const card=cards().find(c=>!c.disabled);
-  const chosenId=card.dataset.characterId;
-  card.click();
-  assert.equal(ids['player-fighter'].querySelector('.card-name').textContent,currentMatch.playerHand.find(c=>c.id===chosenId).name);
-  if(currentMatch.firstSide==='player'){
-    assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length,1);
-    assert.equal(currentMatch.cpuCard,null);
-    ids['confirm-button'].click();
-    assert.equal(currentMatch.phase,'ready');assert.equal(ids['fight-button'].disabled,false);
-    const locked=currentMatch.cpuCard;
-    ids['confirm-button'].listeners.click();assert.equal(currentMatch.cpuCard,locked);
-    assert.ok(cards().every(c=>c.disabled));
-    assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length,1);
-  }else{
-    assert.equal(ids['cpu-fighter'].querySelector('.card-name').textContent,currentMatch.cpuCard.name);
-    assert.equal(ids['confirm-button'].hidden,true);
-  }
-  const before=currentMatch.rounds.length;
-  const beforeDraws=draws;
-  ids['fight-button'].click();
-  assert.equal(draws,beforeDraws+1);assert.equal(stories,draws);
-  assert.equal(ids['round-result'].hidden,false);
+const settled=async()=>{for(let i=0;i<60;i++)await Promise.resolve();};
+(async()=>{
+for(const side of [0,.999999]){
+ firstRoll=side;
+ if(dealCount===0)ids['start-button'].click();else ids['redeal-button'].click();
+ await settled();
+ for(let round=1;round<=3;round++){
+  assert.equal(cards().length,3);assert.equal(cpuCards().length,3);assertNoStats();
+  nextWinner=round===2?'cpu':'player';
+  const card=cards().find(c=>!c.disabled),id=card.dataset.characterId;
+  card.click();for(let i=0;i<10;i++)card.listeners.click();
+  assert.equal(ids['round-result'].hidden,true);
+  await settled();
+  assert.equal(currentMatch.rounds.length,round);
+  assert.equal(new Set(currentMatch.usedPlayerIds).size,round);
   const result=currentMatch.rounds.at(-1);
-  assert.equal(ids['result-stats'].children.length,6);
+  assert.equal(result.playerCard.id,id);
   assert.equal(ids['result-reason'].textContent,result.story.body);
   assert.equal(ids['result-finish'].textContent,`決まり手：${result.story.finish}`);
-  assert.equal(currentMatch.rounds.length,before+1);
-  const front=ids['cpu-fighter'].children[0];
-  for(let i=0;i<10;i++)ids['fight-button'].listeners.click();
-  assert.equal(currentMatch.rounds.length,before+1);assert.equal(ids['cpu-fighter'].children[0],front);assert.equal(draws,beforeDraws+1);assert.equal(stories,draws);
-  assert.ok(cards().every(c=>c.disabled));
-  assert.ok(currentMatch.usedPlayerIds.includes(chosenId));
-  assertNoStats();
+  assert.match(ids['win-banner'].textContent,result.winner==='player'?/あなた/:/CPU/);
+  assert.equal(ids[result.winner==='player'?'cpu-fighter':'player-fighter'].style.visibility,'hidden');
+  assert.equal(ids[result.winner==='player'?'player-fighter':'cpu-fighter'].style.visibility,'');
+  if(round<3){ids['return-button'].click();await settled();}
+ }
+ assert.equal(currentMatch.phase,'finished');assert.equal(currentMatch.playerWins,2);
 }
-function next(){
-  const saved=currentMatch,used=[...currentMatch.usedPlayerIds];
-  ids['return-button'].click();
-  assert.equal(currentMatch,saved);assert.equal(ids['fight-button'].disabled,true);
-  assert.equal(ids['round-result'].hidden,true);assert.equal(ids['result-stats'].children.length,0);
-  for(const card of cards()) assert.equal(card.disabled,used.includes(card.dataset.characterId));
-  if(currentMatch.firstSide==='player')assert.equal(ids['cpu-fighter'].querySelectorAll('.card-back').length,1);
-  else assert.equal(ids['cpu-fighter'].querySelector('.card-name').textContent,currentMatch.cpuCard.name);
-  assert.match(ids['turn-status'].textContent,currentMatch.firstSide==='player'?/あなたが先攻/:/あなたが後攻/);
-  const count=currentMatch.rounds.length;
-  for(const card of cards().filter(c=>c.disabled))card.click();
-  ids['fight-button'].listeners.click();assert.equal(currentMatch.rounds.length,count);
-}
-fight('player'); assert.equal(currentMatch.playerWins,1);next();
-fight('cpu'); assert.equal(currentMatch.cpuWins,1);next();
-fight('player'); assert.equal(currentMatch.phase,'finished');assert.equal(currentMatch.winner,'player');
-assert.equal(currentMatch.rounds.length,3);assert.equal(ids['return-button'].hidden,true);
-ids['return-button'].listeners.click();assert.equal(currentMatch.rounds.length,3);
-assert.equal(dealCount,1);
-firstRoll=0.999999;ids['redeal-button'].click();assert.match(ids['turn-status'].textContent,/あなたが後攻/);assert.equal(dealCount,2);assert.equal(currentMatch.usedPlayerIds.length,0);
-fight('cpu');next();fight('cpu');
-assert.equal(currentMatch.phase,'finished');assert.equal(currentMatch.rounds.length,2);
-assert.equal(currentMatch.winner,'cpu');assert.equal(ids['return-button'].hidden,true);
-assert.equal(cards().filter(c=>c.className.includes('used')).length,2);
-assert.equal(cpuCards().filter(c=>c.className.includes('used')).length,2);
-console.log('PASS: 両者3枚公開・能力値非表示・1回公開・連打防止・使用済み選択禁止・次ラウンド・2勝終了・3ラウンド決着・新しい試合');
+assert.equal(draws,6);assert.equal(stories,6);
+assert.ok(!ids['fight-button']&&!ids['confirm-button']);
+console.log('PASS: 両先攻の1タップ・連打防止・各3枚・再使用禁止・3ラウンド・勝敗/物語保存1回・敗者のみ消滅・WIN整合');
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -2,53 +2,115 @@
   'use strict';
   const get = id => document.getElementById(id);
   const handList = get('hand');
-  const fightButton = get('fight-button');
   let match = null;
   let selectedId = null;
   let stage = 'title';
   let moving = false;
-  const motionEnabled = () => typeof get('player-fighter').animate === 'function' &&
-    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function moveCard(source, target, render, done) {
-    if (!motionEnabled()) { moving = false; get('hand-screen').setAttribute('aria-busy','false'); render(); done(); return; }
-    moving = true; get('hand-screen').setAttribute('aria-busy','true');
-    for (const card of handList.querySelectorAll('.card')) card.disabled = true;
-    fightButton.disabled = true; get('confirm-button').disabled = true; get('redeal-button').disabled = true;
-    get('return-button').disabled = true;
-    get('turn-status').textContent = target === get('player-fighter') ? 'あなたのカードを配置中' : 'CPUが選択中';
-    // DOMを複製せず、中央にある実カードを手札の座標から動かす。
-    const origin = source.getBoundingClientRect();
-    origin.y += window.scrollY;
-    source.classList.add('motion-choice');
-    const lift = source.animate([{transform:'translateY(0)'},{transform:'translateY(-6px)'}], {duration:150,easing:'ease-out',fill:'forwards'});
-    (async () => {
-      let flight, flyingSource;
-      const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
-      const stop = event => { if (event.matches) { lift.cancel(); flight?.cancel(); } };
-      preference.addEventListener?.('change', stop);
+  let fast = false;
+  const pending = new Set();
+  const reduced = () => !get('player-fighter').animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function skipEffects() { fast = true; for (const finish of [...pending]) finish(); }
+  const wait = ms => new Promise(resolve => {
+    if (fast || reduced() || document.hidden) { resolve(); return; }
+    let timer; const finish = () => { clearTimeout(timer); pending.delete(finish); resolve(); };
+    pending.add(finish); timer = setTimeout(finish, ms);
+  });
+  function effect(element, frames, duration, easing = 'ease-out') {
+    if (fast || reduced() || document.hidden) return Promise.resolve();
+    return new Promise(resolve => {
+      let animation, timer;
+      const finish = () => { clearTimeout(timer); pending.delete(finish); animation?.cancel(); resolve(); };
+      pending.add(finish);
       try {
-        await lift.finished;
-        origin.y -= 6;
-        render();
-        flyingSource = [...get(target === get('player-fighter') ? 'hand' : 'cpu-hand').querySelectorAll('.card')].find(card => card.dataset.characterId === source.dataset.characterId);
-        if (flyingSource) flyingSource.style.visibility = 'hidden';
-        target.scrollIntoView({block:'nearest',behavior:'instant'});
-        const destination = target.getBoundingClientRect();
-        target.classList.add('moving-card');
-        flight = target.animate([
-          {transform:`translate(${origin.x-destination.x}px, ${origin.y-window.scrollY-destination.y}px) scale(${origin.width/destination.width}, ${origin.height/destination.height})`},
-          {transform:'translate(0,0) scale(1,1)'}
-        ], {duration:400,easing:'cubic-bezier(.22,.7,.25,1)'});
-        await flight.finished;
-      } catch { render(); } finally {
-        preference.removeEventListener?.('change', stop);
-        source.classList.remove('motion-choice'); target.classList.remove('moving-card');
-        lift.cancel(); flight?.cancel(); if (flyingSource) flyingSource.style.visibility = ''; moving = false;
-        get('hand-screen').setAttribute('aria-busy','false');
-        get('return-button').disabled = false;
-        done();
-      }
-    })();
+        animation = element.animate(frames, {duration, easing, fill:'forwards'});
+        animation.finished.then(finish, finish);
+        timer = setTimeout(finish, duration + 300); // finishedが返らない環境でも止まらない。
+      } catch { finish(); }
+    });
+  }
+  function busy(value) {
+    moving = value; get('hand-screen').setAttribute('aria-busy', String(value));
+    get('skip-button').hidden = !value;
+    get('return-button').disabled = value;
+    document.body.style.overflow = value ? 'hidden' : '';
+    renderHands();
+  }
+  async function moveCard(source, target, render) {
+    if (fast || reduced() || document.hidden) { render(); return; }
+    const origin = source.getBoundingClientRect();
+    source.classList.add('motion-choice');
+    await effect(source, [{transform:'translateY(0)'},{transform:'translateY(-6px)'}], 150);
+    render();
+    const hand = target === get('player-fighter') ? 'hand' : 'cpu-hand';
+    const placeholder = [...get(hand).querySelectorAll('.card')].find(card=>card.dataset.characterId===source.dataset.characterId);
+    if (placeholder) placeholder.style.visibility = 'hidden';
+    const destination = target.getBoundingClientRect();
+    try {
+      target.classList.add('moving-card');
+      await effect(target, [
+        {transform:`translate(${origin.x-destination.x}px, ${origin.y-6-destination.y}px) scale(${origin.width/destination.width}, ${origin.height/destination.height})`},
+        {transform:'translate(0,0) scale(1,1)'}
+      ],400,'cubic-bezier(.22,.7,.25,1)');
+    } finally {
+      source.classList.remove('motion-choice'); target.classList.remove('moving-card');
+      if (placeholder) placeholder.style.visibility = '';
+    }
+  }
+  function clearEffects() {
+    get('hand-screen').dataset.phase='selecting';
+    get('burn-effects').replaceChildren(); get('win-banner').hidden = true;
+    get('impact-flash').style.opacity = '0';
+    for (const id of ['cpu-fighter','player-fighter']) {
+      get(id).style.transform = ''; get(id).style.clipPath = ''; get(id).style.visibility = '';
+      get(id).classList.remove('winner-card'); get(id).setAttribute('aria-hidden','false');
+    }
+  }
+  async function battleEffects(result) {
+    const cpu = get('cpu-fighter'), player = get('player-fighter');
+    get('hand-screen').dataset.phase = 'faceoff';
+    get('turn-status').textContent = 'カードがそろいました・バトル開始';
+    await wait(220);
+    get('hand-screen').dataset.phase = 'collision';
+    if (!fast && !reduced() && !document.hidden) {
+      const a=cpu.getBoundingClientRect(), b=player.getBoundingClientRect();
+      const middle=(a.bottom+b.top)/2;
+      const cpuImpact=`translateY(${middle-(a.top+a.height/2)}px)`,playerImpact=`translateY(${middle-(b.top+b.height/2)}px)`;
+      cpu.style.transform=cpuImpact;player.style.transform=playerImpact;
+      await Promise.all([
+        effect(cpu,[{transform:'translateY(0)'},{transform:cpuImpact}],220,'cubic-bezier(.6,0,.9,.4)'),
+        effect(player,[{transform:'translateY(0)'},{transform:playerImpact}],220,'cubic-bezier(.6,0,.9,.4)')
+      ]);
+      await Promise.all([
+        effect(get('impact-flash'),[{opacity:0},{opacity:.65,offset:.25},{opacity:0}],140),
+        effect(get('battle-arena'),[{transform:'translate(0)'},{transform:'translate(-3px,2px)'},{transform:'translate(3px,-2px)'},{transform:'translate(0)'}],180)
+      ]);
+      cpu.style.transform='';player.style.transform='';
+      await Promise.all([effect(cpu,[{transform:cpuImpact},{transform:'translateY(0)'}],180),effect(player,[{transform:playerImpact},{transform:'translateY(0)'}],180)]);
+    }
+    const winner = result.winner==='player'?player:cpu, loser=result.winner==='player'?cpu:player;
+    get('hand-screen').dataset.phase = 'burning';
+    loser.dataset.burning = 'true';
+    // マスクの上辺が下へ進む。単純な透明度変更ではない。
+    loser.style.clipPath = 'inset(100% 0 0 0)';
+    const layer=get('burn-effects'), rect=loser.getBoundingClientRect(), arena=get('battle-arena').getBoundingClientRect();
+    const flame=document.createElement('div'); flame.className='burn-edge';
+    flame.style.left=`${rect.left-arena.left}px`; flame.style.top=`${rect.top-arena.top}px`; flame.style.width=`${rect.width}px`;
+    layer.append(flame);
+    const sparks=[];
+    if (!fast && !reduced() && !document.hidden) for(let i=0;i<10;i++) {
+      const spark=document.createElement('span'); spark.className='ember'; spark.style.left=`${(i*37)%100}%`; flame.append(spark);
+      sparks.push(effect(spark,[{transform:'translate(0,0)',opacity:0},{opacity:1,offset:.25},{transform:`translate(${i%2?12:-12}px,-28px)`,opacity:0}],650+i*25));
+    }
+    await Promise.all([
+      effect(loser,[{clipPath:'inset(0% 0 0 0)'},{clipPath:'inset(100% 0 0 0)'}],1000,'linear'),
+      effect(flame,[{transform:'translateY(0)'},{transform:`translateY(${rect.height}px)`}],1000,'linear'),...sparks
+    ]);
+    layer.replaceChildren(); loser.style.visibility='hidden'; loser.setAttribute('aria-hidden','true'); loser.dataset.burning='false';
+    get('hand-screen').dataset.phase = 'win';
+    winner.classList.add('winner-card');
+    get('win-banner').textContent = result.winner==='player'?'WIN！ あなた':'WIN！ CPU';
+    get('win-banner').hidden = false;
+    await wait(450);
   }
 
 
@@ -112,12 +174,7 @@
         item.append(card);
       }
     }
-    const needsCommit = match.firstSide === 'player' && stage === 'hand';
-    get('confirm-button').hidden = !needsCommit;
-    get('confirm-button').disabled = moving || !needsCommit || !selectedId;
-    fightButton.hidden = needsCommit;
-    fightButton.disabled = moving || !((stage === 'hand' && match.firstSide === 'cpu') || stage === 'ready') || !selectedId || match.usedPlayerIds.includes(selectedId);
-    get('redeal-button').disabled = moving || stage === 'battling' || stage === 'result' || stage === 'ready';
+    get('redeal-button').disabled = moving || !['hand','finished'].includes(stage);
   }
 
   function renderScore() {
@@ -133,14 +190,15 @@
     if (playerFirst) concealCpuFighter();
     else {
       showCpuFighter(match.cpuCard, false);
-      if (motionEnabled()) {
-        const source = [...get('cpu-hand').querySelectorAll('.card')].find(card => card.dataset.characterId === match.cpuCard.id);
-        get('cpu-fighter').style.visibility = 'hidden';
-        moving = true; get('hand-screen').setAttribute('aria-busy','true'); renderHands();
-        requestAnimationFrame(() => moveCard(source.isConnected ? source : [...get('cpu-hand').querySelectorAll('.card')].find(card => card.dataset.characterId === match.cpuCard.id), get('cpu-fighter'),
-          () => { get('cpu-fighter').style.visibility = ''; },
-          () => { renderHands(); get('turn-status').textContent = 'あなたが後攻・相手を見てカードを選択'; }));
-      }
+      get('cpu-fighter').style.visibility='hidden';
+      stage = 'cpu-entry'; busy(true); fast = reduced() || Boolean(document.hidden);
+      get('turn-status').textContent = 'CPUが選択中';
+      Promise.resolve().then(async () => {
+        const source=[...get('cpu-hand').querySelectorAll('.card')].find(card=>card.dataset.characterId===match.cpuCard.id);
+        await moveCard(source,get('cpu-fighter'),()=>{showCpuFighter(match.cpuCard,false);get('cpu-fighter').style.visibility='';});
+        stage='hand'; busy(false);
+        get('turn-status').textContent='あなたが後攻・相手を見てカードを選択';
+      });
     }
   }
 
@@ -152,25 +210,35 @@
     if (animate) get('cpu-fighter').classList.add('revealed');
   }
 
-  function selectCard(character) {
+  async function selectCard(character) {
     if (moving || stage !== 'hand' || match.usedPlayerIds.includes(character.id)) return;
-    const source = [...handList.querySelectorAll('.card')].find(card => card.dataset.characterId === character.id);
-    selectedId = selectedId === character.id ? null : character.id;
-    source.setAttribute('aria-pressed', String(Boolean(selectedId)));
-    const render = () => { renderHands(); renderPlayerFighter(); };
-    const done = () => {
-      renderHands();
-      [...handList.querySelectorAll('.card')].find(card => card.dataset.characterId === character.id).focus({preventScroll:true});
-      get('turn-status').textContent = !selectedId
-        ? (match.firstSide === 'player' ? 'あなたが先攻・カードを選択' : 'あなたが後攻・相手を見てカードを選択')
-        : (match.firstSide === 'player' ? 'あなたが先攻・選択済み（カードを確定）' : 'あなたが後攻・選択済み（対戦できます）');
-      get('status').textContent = selectedId ? `${character.name}を選択しました。` : '選択を解除しました。';
-    };
-    if (selectedId) moveCard(source, get('player-fighter'), render, done);
-    else { render(); done(); }
+    const source=[...handList.querySelectorAll('.card')].find(card=>card.dataset.characterId===character.id);
+    selectedId=character.id; stage='placing'; fast=reduced() || Boolean(document.hidden);
+    source.setAttribute('aria-pressed','true'); busy(true);
+    get('hand-screen').dataset.phase='placing';
+    get('turn-status').textContent='あなたのカードを配置中';
+    // 判定は一度だけ。以降の演出は同じ保存結果を使う。
+    let result;
+    try {
+      await moveCard([...handList.querySelectorAll('.card')].find(card=>card.dataset.characterId===character.id),get('player-fighter'),()=>{renderHands();renderPlayerFighter();});
+      if(match.firstSide==='player') {
+        window.HumanityMatch.commitPlayerCard(match,selectedId);
+        get('turn-status').textContent='CPUが選択中';
+        const cpuSource=[...get('cpu-hand').querySelectorAll('.card')].find(card=>card.dataset.characterId===match.cpuCard.id);
+        await moveCard(cpuSource,get('cpu-fighter'),()=>{showCpuFighter(match.cpuCard,false);get('cpu-fighter').style.visibility='';});
+      }
+      stage='battling';
+      result=window.HumanityMatch.playRound(match,selectedId);
+      await battleEffects(result);
+    } finally {
+      // 演出だけが失敗しても、確定済みの結果を失わない。
+      if(result) finishRound(result);
+      busy(false);
+    }
   }
 
   function newMatch() {
+    clearEffects();
     match = window.HumanityMatch.deal(window.CHARACTERS);
     selectedId = null; stage = 'hand';
     renderHands(); renderScore(); renderPlayerFighter(); renderTurn();
@@ -180,37 +248,21 @@
     get('status').textContent = '両者に3枚ずつ配りました。2勝先取で試合終了です。';
   }
 
-  function startBattle() {
-    if (moving || !((stage === 'hand' && match.firstSide === 'cpu') || stage === 'ready') || !selectedId || match.usedPlayerIds.includes(selectedId)) return;
-    stage = 'battling';
-    fightButton.disabled = true;
-    get('confirm-button').disabled = true;
-    for (const card of handList.querySelectorAll('.card')) card.disabled = true;
-    get('redeal-button').disabled = true;
-    // 進行・カード消費と判定関数を分離。将来のバトル演出もこの入口へ接続する。
-    const resolve = () => {
-      const result = window.HumanityMatch.playRound(match, selectedId);
-      showCpuFighter(result.cpuCard, false);
-      const roundText = result.winner === 'player' ? 'あなたの勝利' : 'あなたの敗北';
-      if (match.phase === 'finished') {
-        stage = 'finished'; get('return-button').hidden = true;
-        const finalText = match.winner === 'player' ? 'あなたの勝利です！' : 'CPUの勝利です。';
-        get('battle-status').textContent = `第${result.round}ラウンド：${roundText}。${finalText}`;
-      } else {
-        stage = 'result'; get('return-button').hidden = false;
-        get('battle-status').textContent = `第${result.round}ラウンド：${roundText}。次は残りの手札から選んでください。`;
-      }
-      renderHands(); renderScore(); renderResult(result);
-      get('turn-status').textContent = `第${result.round}ラウンドは、あなたが${match.firstSide === 'player' ? '先攻' : '後攻'}でした。`;
-      get('status').textContent = match.phase === 'finished' ? '新しい試合で遊べます。' : '使用済みカードはこの試合では使えません。';
-      get('battle-title').focus({ preventScroll: true });
-      get('battle-area').scrollIntoView({ block: 'start', behavior: 'instant' });
-      (match.phase === 'finished' ? get('redeal-button') : get('return-button')).focus({ preventScroll: true });
-    };
-    if (match.firstSide === 'player') {
-      const source = [...get('cpu-hand').querySelectorAll('.card')].find(card => card.dataset.characterId === match.cpuCard.id);
-      moveCard(source, get('cpu-fighter'), () => showCpuFighter(match.cpuCard, false), resolve);
-    } else resolve();
+  function finishRound(result) {
+    const roundText = result.winner === 'player' ? 'あなたの勝利' : 'あなたの敗北';
+    if (match.phase === 'finished') {
+      stage = 'finished'; get('return-button').hidden = true;
+      const finalText = match.winner === 'player' ? 'あなたの勝利です！' : 'CPUの勝利です。';
+      get('battle-status').textContent = `第${result.round}ラウンド：${roundText}。${finalText}`;
+    } else {
+      stage = 'result'; get('return-button').hidden = false;
+      get('battle-status').textContent = `第${result.round}ラウンド：${roundText}。次は残りの手札から選んでください。`;
+    }
+    renderHands(); renderScore(); renderResult(result);
+    get('turn-status').textContent = `第${result.round}ラウンドは、あなたが${match.firstSide === 'player' ? '先攻' : '後攻'}でした。`;
+    get('status').textContent = match.phase === 'finished' ? '新しい試合で遊べます。' : '使用済みカードはこの試合では使えません。';
+    get('hand-screen').dataset.phase='result';
+    (match.phase==='finished'?get('redeal-button'):get('return-button')).focus({preventScroll:true});
   }
 
   function clearResult() {
@@ -252,26 +304,20 @@
   get('redeal-button').addEventListener('click', () => {
     if (!moving && (stage === 'hand' || stage === 'finished')) newMatch();
   });
-  get('confirm-button').addEventListener('click', () => {
-    if (moving || stage !== 'hand' || match.firstSide !== 'player' || !selectedId) return;
-    window.HumanityMatch.commitPlayerCard(match, selectedId);
-    stage = 'ready';
-    renderHands();
-    get('turn-status').textContent = 'あなたが先攻・確定済み／CPUは対戦開始時に判明';
-    get('status').textContent = '「このキャラで戦う」で対戦を始めましょう。';
-    fightButton.focus({ preventScroll: true });
-  });
-  fightButton.addEventListener('click', startBattle);
+  get('skip-button').addEventListener('click', skipEffects);
+  document.addEventListener?.('keydown', event=>{if(event.key==='Escape'&&moving)skipEffects();});
+  document.addEventListener?.('visibilitychange', () => { if(document.hidden) skipEffects(); });
+  if(window.matchMedia) window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', event=>{if(event.matches)skipEffects();});
   get('return-button').addEventListener('click', () => {
     if (moving || stage !== 'result') return;
+    clearEffects();
     window.HumanityMatch.nextRound(match);
     stage = 'hand'; selectedId = null;
     renderHands(); renderScore(); renderPlayerFighter(); renderTurn();
     get('return-button').hidden = true; get('battle-status').textContent = ''; clearResult();
     get('status').textContent = '残りの手札からカードを1枚選んでください。';
     const card = [...handList.querySelectorAll('.card')].find(c => !c.disabled) || handList.querySelector('.card:not(.used)');
-    card.focus({ preventScroll: true });
-    if (match.firstSide === 'cpu') get('battle-area').scrollIntoView({ block: 'start', behavior: 'instant' });
-    else card.scrollIntoView({ block: 'center', behavior: 'instant' });
+    card?.focus({ preventScroll: true });
+
   });
 })();
