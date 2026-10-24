@@ -72,27 +72,26 @@ const oracle=Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync('tests
       // Run the real game wiring, alternating which selected official ID belongs to which side.
       await page.evaluate(()=>{
         const deal=HumanityMatch.deal,resolve=HumanityBattle.resolveRound;
-        window.__reverse=false;window.__first='player';window.__roundDraws=0;
+        window.__reverse=false;window.__missing=false;window.__roundDraws=0;
         HumanityMatch.deal=chars=>{
           const m=deal(chars,()=>.25),find=id=>chars.find(c=>c.id===id);
           const player=__reverse?'sumo':'spartan',cpu=__reverse?'spartan':'sumo';
-          m.playerHand=[find(player),find('hacker'),find('nakameguro-barber')];
-          m.cpuHand=[find(cpu),find('neanderthal'),find('japanese-office-worker')];
-          m.firstSide=__first;m.cpuCard=__first==='cpu'?m.cpuHand[0]:null;
+          m.playerHand=[find(__missing?'hacker':player),find('nakameguro-barber')];
+          m.cpuHand=[find(__missing?'neanderthal':cpu)];m.cpuCard=m.cpuHand[0];
           window.__match=m;return m;
         };
         // Controlled test selection/result; production logic remains unchanged.
         Math.random=()=>0;
-        HumanityBattle.resolveRound=(p,c)=>resolve(p,c,()=>[0,.999999,0][window.__roundDraws++]);
+        HumanityBattle.resolveRound=(p,c)=>{__roundDraws++;return resolve(p,c,()=>__reverse?.999999:0);};
       });
       const idle=()=>page.waitForFunction(()=>document.querySelector('#hand-screen').getAttribute('aria-busy')!=='true');
       await page.selectOption('#battle-mode','pixel');
-      for(const reverse of [false,true])for(const first of ['player','cpu']){
-        await page.evaluate(({reverse,first})=>{__reverse=reverse;__first=first;__roundDraws=0;},{reverse,first});
+      for(const reverse of [false,true])for(const missing of [false,true]){
+        await page.evaluate(({reverse,missing})=>{__reverse=reverse;__missing=missing;__roundDraws=0;},{reverse,missing});
         if(await page.locator('#title-screen').isVisible())await page.getByRole('button',{name:'ゲーム開始',exact:true}).click();
-        else await page.getByRole('button',{name:'新しい試合',exact:true}).click();
+        else await page.getByRole('button',{name:'次の対戦',exact:true}).click();
         await idle();
-        for(let round=1;round<=3;round++){
+        {
           await page.locator('#hand .card:not(:disabled)').first().click();await idle();
           const actual=await page.evaluate(()=>{
             const r=__match.rounds.at(-1),canvas=document.querySelector('#pixel-canvas');
@@ -101,17 +100,17 @@ const oracle=Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync('tests
               count:__match.rounds.length,legend:document.querySelector('#pixel-legend').textContent,names:[r.playerCard.name,r.cpuCard.name]};
           });
           assert.equal(actual.shownPlayer,actual.player);assert.equal(actual.shownCpu,actual.cpu);
-          assert.equal(actual.shownWinner,actual.winner);assert.equal(actual.count,round);
-          assert.equal(actual.playerFallback,round===1?'false':'true');assert.equal(actual.cpuFallback,round===1?'false':'true');
+          assert.equal(actual.shownWinner,actual.winner);assert.equal(actual.count,1);
+          assert.equal(actual.playerFallback,missing?'true':'false');assert.equal(actual.cpuFallback,missing?'true':'false');
           for(const name of actual.names)assert.ok(actual.legend.includes(name));
-          assert.equal(await page.locator('#hand .card:visible').count(),3);assert.equal(await page.locator('#cpu-hand .card:visible').count(),3);
+          assert.equal(await page.locator('#hand .card:visible').count(),2);assert.equal(await page.locator('#cpu-hand .card:visible').count(),1);
           assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-          if(round===1){
+          {
             await page.selectOption('#battle-mode','card');await page.selectOption('#battle-mode','pixel');
             await page.waitForFunction(()=>!document.querySelector('#pixel-canvas').hidden);
             assert.equal(await page.locator('#pixel-canvas').getAttribute('data-player-character-id'),actual.player);
           }
-          if(process.env.SCREENSHOT_DIR && round===1 && reverse && first==='cpu' && (width===375||width===1280)){
+          if(process.env.SCREENSHOT_DIR && !missing && reverse && (width===375||width===1280)){
             fs.mkdirSync(process.env.SCREENSHOT_DIR,{recursive:true});
             await page.evaluate(async()=>{
               const r=__match.rounds.at(-1);window.__preview=HumanityPixelBattle.createRenderer({playerId:r.playerCard.id,cpuId:r.cpuCard.id});await __preview.ready;
@@ -120,13 +119,12 @@ const oracle=Object.fromEntries(Object.entries(JSON.parse(fs.readFileSync('tests
             await page.locator('#battle-arena').screenshot({path:`${process.env.SCREENSHOT_DIR}/swapped-${width}.png`});
             await page.evaluate(()=>__preview.drawScene(document.querySelector('#pixel-canvas'),__preview.sampleScene(10000,__match.rounds.at(-1).winner)));
           }
-          if(round<3)await page.getByRole('button',{name:'次のラウンドへ'}).click();
           await idle();
         }
         assert.equal(await page.evaluate(()=>__match.phase),'finished');
       }
       assert.deepEqual(errors,[]);
-      console.log(`PASS ${width}px: ${count} real sprite draws / both ID assignments and positions / master-only and failed image / both first turns, 3 rounds / hands, names and result replay`);
+      console.log(`PASS ${width}px: ${count} real sprite draws / both ID assignments and positions / master-only and failed image / single-match CPU1/player2 / fallback / names and result replay`);
       await page.close();
     }
   }finally{await browser.close();}

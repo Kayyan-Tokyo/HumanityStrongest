@@ -54,8 +54,8 @@ assert.equal(asset.toString('ascii', 8, 12), 'WEBP');
       assert.equal(initial.layer, '-1');
       assert.equal(initial.pointer, 'none');
       assert.ok(initial.image.includes('0.6')); // 画像の上に60%の暗幕。
-      assert.equal(await page.locator('#hand .card').count(), 3);
-      assert.equal(await page.locator('#cpu-hand .card').count(), 3);
+      assert.equal(await page.locator('#hand .card').count(), 2);
+      assert.equal(await page.locator('#cpu-hand .card').count(), 1);
       assert.ok(await page.locator('#hand .card, #cpu-hand .card').evaluateAll(cards => cards.every(c => {
         const n = c.querySelector('.card-name'), p = c.querySelector('.card-profile');
         return n.scrollWidth <= n.clientWidth && /歳/.test(p.textContent) && /cm/.test(p.textContent) && /kg/.test(p.textContent)
@@ -97,7 +97,7 @@ assert.equal(asset.toString('ascii', 8, 12), 'WEBP');
       assert.equal(result.width, initial.width);
       // 使用済みラベルで手札の高さが変わることは許容。物語の表示/非表示では変わらない。
       assert.deepEqual(errors, []);
-      console.log(`PASS ${width}px: 実WebP読込1280×720/相対パス・cover/暗幕・手札各3枚・長い名前・横はみ出しなし・スクロール/結果表示後の固定基準`);
+      console.log(`PASS ${width}px: 実WebP読込1280×720/相対パス・cover/暗幕・CPU1枚/候補2枚・長い名前・横はみ出しなし・スクロール/結果表示後の固定基準`);
       await context.close();
     }
   } finally { await browser.close(); }

@@ -82,12 +82,13 @@
       list-style: none;
     }
     .hand {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
       width: 100%;
     }
     .cpu-hand {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: minmax(0, 280px);
+      justify-content: center;
       gap: 8px;
       width: 100%;
       min-height: 100px;
@@ -128,11 +129,10 @@
     .story-note { font-size: 0.8rem; line-height: 1.7; color: #d8d4e4; }
     .result-reason { white-space: pre-line; font-size: 1rem; line-height: 1.9; overflow-wrap: anywhere; text-align: left; margin: 12px 0 0; }
     .turn-status { margin: 0 0 8px; padding: 0; border: 0; color: #ffcf89; font-size: 0.8rem; line-height: 1.5; font-weight: 700; overflow-wrap: anywhere; }
-    .match-score { margin: 0 0 4px; font-size: clamp(0.75rem, 3.1vw, 1rem); white-space: nowrap; color: #ffcf89; font-weight: 700; line-height: 1.6; }
     .card.used { opacity: 0.5; border-style: dashed; }
     .used-label { margin-top: auto; color: #d8d4e4; font-size: 0.75rem; }
     .selection-label { margin-top: auto; color: #ffcf89; font-size: 0.8rem; }
-    /* 手札だけを3列に調整し、中央の出場カードの文字サイズは維持する。 */
+    /* 2枚の候補と公開CPUカード。中央の出場カードの文字サイズは維持する。 */
     .hand .card, .cpu-hand .card { padding: 12px 4px; gap: 10px; border-radius: 8px; }
     .hand .card-name, .cpu-hand .card-name {
       font-size: clamp(0.75rem, 3.2vw, 1rem);
@@ -273,9 +273,23 @@
     #pixel-canvas { position:absolute; inset:0; display:block; width:100%; height:100%; image-rendering:pixelated; border-radius:12px; }
     .pixel-legend { position:absolute; bottom:3px; left:50%; transform:translateX(-50%); margin:0; padding:3px 8px; border-radius:6px; background:#100e19dd; color:#f8fafc; font-size:0.7rem; width:max-content; max-width:calc(100% - 12px); text-align:center; overflow-wrap:anywhere; pointer-events:none; }
     .pixel-legend .blue { color:#8cc5ff; } .pixel-legend .red { color:#ffaaaa; }
+    .streak-bar { position:fixed; inset:0 0 auto; z-index:35; padding:calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; border-bottom:1px solid #625575; background:#10121bf5; }
+    .streak-counts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; max-width:760px; margin:0 auto; text-align:center; }
+    .streak-counts p { margin:0; font-size:0.75rem; line-height:1.4; color:#d8d4e4; }
+    .streak-counts strong { display:inline-block; margin-left:6px; color:#ffcf89; font-size:clamp(0.85rem,3.4vw,1.1rem); overflow-wrap:anywhere; }
+    body { padding-top:calc(80px + env(safe-area-inset-top, 0px)); }
+    body.in-game { padding-top:calc(64px + env(safe-area-inset-top, 0px)); }
+    .streak-notice { margin:12px 0; padding:10px 12px; border:1px solid #c89350; border-radius:10px; color:#ffd78e; background:#302534; font-weight:800; line-height:1.5; overflow-wrap:anywhere; }
+    .streak-notice.milestone { color:#fff0b4; border:2px solid #ffcf68; background:linear-gradient(120deg,#3b2134,#493313); font-size:clamp(1rem,4vw,1.3rem); }
   </style>
 </head>
 <body>
+  <header class="streak-bar" aria-label="連勝記録">
+    <div class="streak-counts">
+      <p>現在の連勝数 <strong id="current-streak">0</strong></p>
+      <p>最高連勝数 <strong id="best-streak">0</strong></p>
+    </div>
+  </header>
   <main>
     <div class="display-controls">
       <label for="battle-mode">モード
@@ -294,10 +308,9 @@
       <button id="start-button" type="button">ゲーム開始</button>
     </section>
     <section id="hand-screen" aria-labelledby="hand-title" hidden>
-      <p id="match-score" class="match-score" role="status"></p>
       <p id="turn-status" class="turn-status" role="status"></p>
-      <h2 id="hand-title" tabindex="-1">CPUの手札</h2>
-      <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの手札3枚"></ul>
+      <h2 id="hand-title" tabindex="-1">今回の対戦相手</h2>
+      <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの公開カード1枚"></ul>
       <section id="battle-area" class="battle-area" aria-labelledby="battle-title">
         <h2 id="battle-title" tabindex="-1">バトルエリア</h2>
         <div id="battle-arena" class="battle-arena" data-attack-axis="y">
@@ -306,7 +319,7 @@
           <section class="battle-side battle-side--cpu" data-attack-direction="down" aria-labelledby="cpu-label">
             <h3 id="cpu-label">CPU</h3>
             <div id="cpu-fighter" class="fighter-slot">
-              <div class="card-back" role="img" aria-label="CPUが選んだ裏向きカード"><span aria-hidden="true">?</span><span>CPU</span></div>
+              <span class="empty-fighter">CPUの対戦相手を表示します</span>
             </div>
           </section>
           <div id="impact-flash" aria-hidden="true"></div>
@@ -318,11 +331,12 @@
           </section>
         </div>
         <div class="actions">
-          <button id="return-button" type="button" hidden>次のラウンドへ</button>
+          <button id="next-match-button" type="button" hidden>次の対戦</button>
         </div>
         <p id="battle-status" class="status" role="status"></p>
+        <p id="streak-notice" class="streak-notice" role="status" aria-live="polite" aria-atomic="true" hidden></p>
         <section id="round-result" class="round-result" aria-labelledby="result-title" hidden>
-          <h3 id="result-title">ラウンドの結果</h3>
+          <h3 id="result-title">対戦結果</h3>
           <p id="result-probability"></p>
           <table>
             <caption>ふたりの能力を見くらべよう</caption>
@@ -335,22 +349,22 @@
           <p id="result-finish" class="result-finish"></p>
         </section>
       </section>
-      <h3>あなたの手札</h3>
-      <ul id="hand" class="hand" aria-label="あなたの手札3枚"></ul>
+      <h3>あなたの候補（2人）</h3>
+      <ul id="hand" class="hand" aria-label="あなたの候補2枚"></ul>
       <div class="actions">
         <button id="skip-button" class="secondary" type="button" hidden>演出をスキップ</button>
-        <button id="redeal-button" class="secondary" type="button">新しい試合</button>
       </div>
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=sprite-registry-1" defer></script>
-  <script src="./js/battle.js?v=sprite-registry-1" defer></script>
-  <script src="./js/combat-styles.js?v=sprite-registry-1" defer></script>
-  <script src="./js/story.js?v=sprite-registry-1" defer></script>
-  <script src="./js/match.js?v=sprite-registry-1" defer></script>
-  <script src="./js/sprite-registry.js?v=sprite-registry-1" defer></script>
-  <script src="./js/pixel-battle.js?v=sprite-registry-1" defer></script>
-  <script src="./js/game.js?v=sprite-registry-1" defer></script>
+  <script src="./js/characters.js?v=single-match-1" defer></script>
+  <script src="./js/battle.js?v=single-match-1" defer></script>
+  <script src="./js/combat-styles.js?v=single-match-1" defer></script>
+  <script src="./js/story.js?v=single-match-1" defer></script>
+  <script src="./js/match.js?v=single-match-1" defer></script>
+  <script src="./js/sprite-registry.js?v=single-match-1" defer></script>
+  <script src="./js/pixel-battle.js?v=single-match-1" defer></script>
+  <script src="./js/streak.js?v=single-match-1" defer></script>
+  <script src="./js/game.js?v=single-match-1" defer></script>
 </body>
 </html>

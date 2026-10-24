@@ -10,6 +10,9 @@
   let mode = 'card';
   let pixelRun = null, pixelRenderer = null;
   const pending = new Set();
+  let storage;
+  try { storage = window.localStorage; } catch { /* 保存を拒否されても対戦は続行する。 */ }
+  const streak = window.HumanityStreak.create(storage);
   const reduced = () => !get('player-fighter').animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function skipEffects() { fast = true; pixelRun?.skip(); for (const finish of [...pending]) finish(); }
   const wait = ms => new Promise(resolve => {
@@ -33,7 +36,7 @@
   function busy(value) {
     moving = value; get('hand-screen').setAttribute('aria-busy', String(value));
     get('skip-button').hidden = !value;
-    get('return-button').disabled = value;
+    get('next-match-button').disabled = value;
     get('battle-mode').disabled = value;
     document.body.style.overflow = value ? 'hidden' : '';
     renderHands();
@@ -165,14 +168,6 @@
     card.append(name, profile);
   }
 
-  function cardBack() {
-    const back = document.createElement('div'); back.className = 'card-back';
-    back.setAttribute('role', 'img'); back.setAttribute('aria-label', 'CPUが選んだ裏向きカード');
-    const emblem = document.createElement('span'); emblem.textContent = '?'; emblem.setAttribute('aria-hidden', 'true');
-    const caption = document.createElement('span'); caption.textContent = 'CPU';
-    back.append(emblem, caption); return back;
-  }
-
   function renderPlayerFighter() {
     get('player-fighter').replaceChildren();
     const character = match.playerHand.find(c => c.id === selectedId);
@@ -181,11 +176,6 @@
       const empty = document.createElement('span'); empty.className = 'empty-fighter';
       empty.textContent = '手札からカードを選んでください'; get('player-fighter').append(empty);
     }
-  }
-
-  function concealCpuFighter() {
-    get('cpu-fighter').classList.remove('revealed');
-    get('cpu-fighter').replaceChildren(cardBack());
   }
 
   function renderHands() {
@@ -209,39 +199,46 @@
         if (used || side === 'player') {
           const label = document.createElement('span');
           label.className = side === 'player' ? 'selection-label' : 'used-label';
-          label.textContent = used ? '使用済み' : selectedId === character.id ? '選択中' : 'タップして選択';
+          label.textContent = used ? '対戦済み' : stage === 'finished' ? '未選択' : selectedId === character.id ? '選択中' : 'タップして選択';
           card.append(label);
         }
         (side === 'player' ? handList : get('cpu-hand')).append(item);
         item.append(card);
       }
     }
-    get('redeal-button').disabled = moving || !['hand','finished'].includes(stage);
+    get('next-match-button').hidden = stage !== 'finished';
+    get('next-match-button').disabled = moving || stage !== 'finished';
   }
 
-  function renderScore() {
-    const prefix = match.phase === 'finished' ? '試合終了' : `第${match.round}/3ラウンド`;
-    get('match-score').textContent = `${prefix}　あなた ${match.playerWins}勝 — CPU ${match.cpuWins}勝`;
+  function renderStreak() {
+    const score = streak.snapshot();
+    get('current-streak').textContent = String(score.current);
+    get('best-streak').textContent = String(score.best);
+    get('best-streak').title = score.storageAvailable ? '最高連勝数を保存しています' : '保存を利用できないため、このページ内で記録します';
+  }
+
+  async function streakEffects(update) {
+    const notice = get('streak-notice');
+    notice.hidden = false;
+    notice.className = update.milestone ? 'streak-notice milestone' : 'streak-notice';
+    notice.dataset.milestone = update.milestone ? String(update.milestone) : '';
+    if (update.winner === 'draw') { notice.textContent = '引き分け・連勝数はそのまま！'; return; }
+    if (update.winner !== 'player') { notice.hidden = true; return; }
+    const celebrations = {5:'5連勝！快進撃！',10:'10連勝！止まらない！',20:'20連勝！伝説の連勝！'};
+    notice.textContent = celebrations[update.milestone] || `${update.current}連勝！`;
+    get('hand-screen').dataset.phase = 'streak';
+    const duration = update.milestone ? 750 : 300;
+    await Promise.all([
+      effect(get('current-streak'),[{transform:'scale(1)'},{transform:'scale(1.3)',color:'#fff5be',offset:.45},{transform:'scale(1)'}],duration),
+      effect(notice,update.milestone
+        ? [{transform:'scale(.94)',boxShadow:'0 0 0 #ffc45e00'},{transform:'scale(1.03)',boxShadow:'0 0 24px #ffc45eaa',offset:.5},{transform:'scale(1)',boxShadow:'0 0 8px #ffc45e55'}]
+        : [{opacity:.3,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],duration)
+    ]);
   }
 
   function renderTurn() {
-    const playerFirst = match.firstSide === 'player';
-    get('turn-status').textContent = playerFirst
-      ? 'あなたが先攻・カードを選択'
-      : 'あなたが後攻・相手を見てカードを選択';
-    if (playerFirst) concealCpuFighter();
-    else {
-      showCpuFighter(match.cpuCard, false);
-      get('cpu-fighter').style.visibility='hidden';
-      stage = 'cpu-entry'; busy(true); fast = reduced() || Boolean(document.hidden);
-      get('turn-status').textContent = 'CPUが選択中';
-      Promise.resolve().then(async () => {
-        const source=[...get('cpu-hand').querySelectorAll('.card')].find(card=>card.dataset.characterId===match.cpuCard.id);
-        await moveCard(source,get('cpu-fighter'),()=>{showCpuFighter(match.cpuCard,false);get('cpu-fighter').style.visibility='';});
-        stage='hand'; busy(false);
-        get('turn-status').textContent='あなたが後攻・相手を見てカードを選択';
-      });
-    }
+    get('turn-status').textContent = 'CPUのカードを見て、1枚選んでください';
+    showCpuFighter(match.cpuCard, false);
   }
 
   function showCpuFighter(character, animate = true) {
@@ -263,20 +260,19 @@
     let result;
     try {
       await moveCard([...handList.querySelectorAll('.card')].find(card=>card.dataset.characterId===character.id),get('player-fighter'),()=>{renderHands();renderPlayerFighter();});
-      if(match.firstSide==='player') {
-        window.HumanityMatch.commitPlayerCard(match,selectedId);
-        get('turn-status').textContent='CPUが選択中';
-        const cpuSource=[...get('cpu-hand').querySelectorAll('.card')].find(card=>card.dataset.characterId===match.cpuCard.id);
-        await moveCard(cpuSource,get('cpu-fighter'),()=>{showCpuFighter(match.cpuCard,false);get('cpu-fighter').style.visibility='';});
-      }
       stage='battling';
       result=window.HumanityMatch.playRound(match,selectedId);
-      if (mode === 'pixel') await pixelEffects(result);
+      if (result.winner === 'draw') {
+        get('turn-status').textContent = '引き分け';
+        await wait(300);
+      } else if (mode === 'pixel') await pixelEffects(result);
       else await battleEffects(result);
     } finally {
       // 演出だけが失敗しても、確定済みの結果を失わない。
-      if(result) finishRound(result);
-      busy(false);
+      try { if(result) await finishRound(result); } finally {
+        busy(false);
+        if (result) get('next-match-button').focus({preventScroll:true});
+      }
     }
   }
 
@@ -284,28 +280,25 @@
     clearEffects();
     match = window.HumanityMatch.deal(window.CHARACTERS);
     selectedId = null; stage = 'hand';
-    renderHands(); renderScore(); renderPlayerFighter(); renderTurn();
-    get('return-button').hidden = true;
+    renderHands(); renderPlayerFighter(); renderTurn();
+    get('next-match-button').hidden = true;
+    get('streak-notice').hidden = true;
     get('battle-status').textContent = '';
     clearResult();
-    get('status').textContent = '両者に3枚ずつ配りました。2勝先取で試合終了です。';
+    get('status').textContent = '1試合で勝敗が決まります。';
   }
 
-  function finishRound(result) {
-    const roundText = result.winner === 'player' ? 'あなたの勝利' : 'あなたの敗北';
-    if (match.phase === 'finished') {
-      stage = 'finished'; get('return-button').hidden = true;
-      const finalText = match.winner === 'player' ? 'あなたの勝利です！' : 'CPUの勝利です。';
-      get('battle-status').textContent = `第${result.round}ラウンド：${roundText}。${finalText}`;
-    } else {
-      stage = 'result'; get('return-button').hidden = false;
-      get('battle-status').textContent = `第${result.round}ラウンド：${roundText}。次は残りの手札から選んでください。`;
-    }
-    renderHands(); renderScore(); renderResult(result);
-    get('turn-status').textContent = `第${result.round}ラウンドは、あなたが${match.firstSide === 'player' ? '先攻' : '後攻'}でした。`;
-    get('status').textContent = match.phase === 'finished' ? '新しい試合で遊べます。' : '使用済みカードはこの試合では使えません。';
-    get('hand-screen').dataset.phase='result';
-    (match.phase==='finished'?get('redeal-button'):get('return-button')).focus({preventScroll:true});
+  async function finishRound(result) {
+    stage = 'finished';
+    const update = streak.record(result);
+    renderStreak();
+    await streakEffects(update);
+    const outcome = result.winner === 'player' ? 'あなたの勝利！' : result.winner === 'cpu' ? 'CPUの勝利。' : '引き分け。';
+    get('battle-status').textContent = outcome;
+    renderHands(); renderResult(result);
+    get('turn-status').textContent = '対戦終了';
+    get('status').textContent = '「次の対戦」で新しい組み合わせに挑戦できます。';
+    get('hand-screen').dataset.phase = 'result';
   }
 
   function clearResult() {
@@ -319,7 +312,7 @@
 
   function renderResult(result) {
     const decision = result.decision;
-    get('result-title').textContent = `第${result.round}ラウンドの結果`;
+    get('result-title').textContent = result.winner === 'player' ? '勝利' : result.winner === 'cpu' ? '敗北' : '引き分け';
     get('result-probability').textContent = `対戦前の勝率：あなた ${decision.playerWinPercent}% ／ CPU ${100 - decision.playerWinPercent}%`;
     get('result-stats').replaceChildren();
     for (const stat of window.HumanityBattle.STATS) {
@@ -344,9 +337,6 @@
     get('title-screen').hidden = true; get('hand-screen').hidden = false;
     get('hand-title').focus(); window.scrollTo({ top: 0, behavior: 'instant' });
   });
-  get('redeal-button').addEventListener('click', () => {
-    if (!moving && (stage === 'hand' || stage === 'finished')) newMatch();
-  });
   get('skip-button').addEventListener('click', skipEffects);
   get('pixel-speed').addEventListener('change', () => pixelRun?.setSpeed(Number(get('pixel-speed').value)));
   get('battle-mode').addEventListener('change', async () => {
@@ -357,7 +347,9 @@
       const result = match.rounds.at(-1);
       clearEffects();
       get('hand-screen').dataset.phase = 'result';
-      if (mode === 'pixel') {
+      if (result.winner === 'draw') {
+        get('win-banner').hidden = true;
+      } else if (mode === 'pixel') {
         const renderer = createPixelRenderer(result);
         await renderer.ready;
         if (pixelRenderer !== renderer) return;
@@ -376,16 +368,11 @@
   document.addEventListener?.('keydown', event=>{if(event.key==='Escape'&&moving)skipEffects();});
   document.addEventListener?.('visibilitychange', () => { if(document.hidden) skipEffects(); });
   if(window.matchMedia) window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', event=>{if(event.matches)skipEffects();});
-  get('return-button').addEventListener('click', () => {
-    if (moving || stage !== 'result') return;
-    clearEffects();
-    window.HumanityMatch.nextRound(match);
-    stage = 'hand'; selectedId = null;
-    renderHands(); renderScore(); renderPlayerFighter(); renderTurn();
-    get('return-button').hidden = true; get('battle-status').textContent = ''; clearResult();
-    get('status').textContent = '残りの手札からカードを1枚選んでください。';
-    const card = [...handList.querySelectorAll('.card')].find(c => !c.disabled) || handList.querySelector('.card:not(.used)');
-    card?.focus({ preventScroll: true });
-
+  get('next-match-button').addEventListener('click', () => {
+    if (moving || stage !== 'finished') return;
+    newMatch();
+    get('hand-title').focus({preventScroll:true});
+    window.scrollTo({top:0,behavior:'instant'});
   });
+  renderStreak();
 })();
