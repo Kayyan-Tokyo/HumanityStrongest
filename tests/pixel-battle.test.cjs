@@ -16,7 +16,11 @@ assert.equal(api.spriteFrame('player', { ...walking, moving:false }, 450).animat
 assert.equal(api.spriteFrame('player', { ...walking, pose:'idle' }, 450).animated, false);
 assert.equal(api.spriteFrame('player', { ...walking, direction:-1 }, 450).flip, true);
 assert.equal(api.spriteFrame('player', walking, 450).flip, false);
-assert.equal(api.spriteFrame('cpu', walking, 450).animated, false);
+assert.equal(api.spriteFrame('cpu', walking, 450).animated, true);
+assert.deepEqual([0,170,340,510,680].map(t=>api.spriteFrame('cpu',walking,t).index),[0,1,2,3,0]);
+assert.equal(api.spriteFrame('cpu',{...walking,moving:false},510).animated,false);
+assert.equal(api.spriteFrame('cpu',{...walking,direction:-1},510).flip,true);
+assert.equal(api.spriteFrame('cpu',walking,510).flip,false);
 for (let t=0;t<3000;t+=10) {
   const actor=api.projectActor(api.sampleScene(t,'player').player,'player');
   for(const frame of api.SPRITES.player.poses.walk.frames) {
@@ -38,9 +42,9 @@ for (const winner of ['player', 'cpu']) {
       const config = api.SPRITES[side], h = config.height * api.LAYOUT.spriteScale, w = h * config.frame[2] / config.frame[3];
       const fallen = ['fall', 'defeated'].includes(a.pose);
       const direction = side === 'player' ? 1 : -1;
-      const angle = fallen ? -direction * a.fall * .18 : a.pose === 'attack' ? direction * .07 : a.pose === 'damage' ? -direction * .08 : 0;
-      const scaleX = a.pose === 'attack' ? 1.04 : 1;
-      const scaleY = fallen ? 1 - a.fall * .60 : a.pose === 'attack' || (a.pose === 'walk' && a.frame) ? .98 : 1;
+      const angle = fallen ? -direction * a.fall * .18 : a.pose === 'attack' && !config.poses.attack?.once ? direction * .07 : a.pose === 'damage' ? -direction * .08 : 0;
+      const scaleX = a.pose === 'attack' && !config.poses.attack?.once ? 1.04 : 1;
+      const scaleY = fallen ? 1 - a.fall * .60 : (a.pose === 'attack' && !config.poses.attack?.once) || (a.pose === 'walk' && a.frame && !config.poses.walk) ? .98 : 1;
       const xs = [];
       for (const x of [-w / 2, w / 2]) for (const rawY of [-h, 0]) {
         const y = rawY * scaleY, xx = x * scaleX;
@@ -124,12 +128,23 @@ const step = time => { now = time; const calls = [...frames.values()]; frames.cl
   assert.ok(tip>=target-targetHalf && tip<=target+targetHalf, '槍先が相手に届く');
   assert.equal(api.spriteFrame('player',{...impact.player,facing:Math.PI},3500).flip,true);
   assert.equal(api.spriteFrame('player',{...impact.player,attackTime:500},3700).animated,false);
+  for(const [i,t]of [4200,4325,4450,4575].entries()) {
+    api.drawScene(canvas,api.sampleScene(t,'cpu'));
+    assert.equal(canvas.dataset.cpuAttacking,'true'); assert.equal(Number(canvas.dataset.cpuFrame),i);
+  }
+  api.drawScene(canvas,api.sampleScene(4700,'cpu')); assert.equal(canvas.dataset.cpuAttacking,'false');
+  api.drawScene(canvas,api.sampleScene(4800,'cpu'));
+  assert.equal(canvas.dataset.cpuWalking,'true');assert.equal(canvas.dataset.cpuFlipped,'false');
+  const slap=api.sampleScene(4500,'cpu');
+  assert.ok(slap.hit>0);assert.equal(slap.player.pose,'damage');
+  assert.equal(api.spriteFrame('cpu',slap.cpu,4500).index,2);
+  assert.equal(api.spriteFrame('cpu',slap.cpu,4500).flip,true);
   for(const t of [1100,1250,1400,1550]) api.drawScene(canvas,api.sampleScene(t,'player'));
   assert.ok(draws.length > 0);
   for (const [image, sx, sy, sw, sh, dx, dy, dw, dh] of draws) {
-    assert.match(image.source, /assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f|spartan_thrust_4f)\.png/);
-    assert.ok(sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= (image.source.includes("thrust") ? 3328 : image.source.includes("walk_4f") ? 768 : 192) && sy + sh <= (image.source.includes("thrust") ? 480 : 192));
-    if(image.source.includes('thrust')) { assert.ok(Math.abs(dy/dh+460/480)<1e-10); assert.ok(Math.abs(dx/dw+240/832)<1e-10); } else if(image.source.includes('walk_4f')) { const clip=api.SPRITES.player.poses.walk;const i=clip.frames.findIndex(f=>f[0]===sx);assert.equal(dy,-dh);assert.ok(Math.abs(dx + clip.anchors[i][0]*dh/sh)<1e-10);assert.ok(Math.abs(dh/sh-api.SPRITES.player.height*api.LAYOUT.spriteScale/144)<1e-10); } else { assert.equal(dy, -dh); assert.equal(dx, -dw / 2); } // 下端中央を足元に固定
+    assert.match(image.source, /assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f|spartan_thrust_4f|sumo_walk_4f|sumo_slap_4f)\.png/);
+    assert.ok(sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= (image.source.includes("sumo_slap") ? 2816 : image.source.includes("sumo_walk") ? 1280 : image.source.includes("thrust") ? 3328 : image.source.includes("walk_4f") ? 768 : 192) && sy + sh <= (image.source.includes("sumo_slap") ? 496 : image.source.includes("sumo_walk") ? 336 : image.source.includes("thrust") ? 480 : 192));
+    if(image.source.includes('sumo_walk')) {assert.ok(Math.abs(dy/dh+316/336)<1e-10);assert.ok(Math.abs(dx/dw+160/320)<1e-10);} else if(image.source.includes('sumo_slap')) {assert.ok(Math.abs(dy/dh+476/496)<1e-10);assert.ok(Math.abs(dx/dw+256/704)<1e-10);} else if(image.source.includes('thrust')) { assert.ok(Math.abs(dy/dh+460/480)<1e-10); assert.ok(Math.abs(dx/dw+240/832)<1e-10); } else if(image.source.includes('walk_4f')) { const clip=api.SPRITES.player.poses.walk;const i=clip.frames.findIndex(f=>f[0]===sx);assert.equal(dy,-dh);assert.ok(Math.abs(dx + clip.anchors[i][0]*dh/sh)<1e-10);assert.ok(Math.abs(dh/sh-api.SPRITES.player.height*api.LAYOUT.spriteScale/144)<1e-10); } else { assert.equal(dy, -dh); assert.equal(dx, -dw / 2); } // 下端中央を足元に固定
     assert.ok(Math.abs(dw / dh - sw / sh) < 1e-10); // 元の縦横比
   }
   assert.equal(ctx.imageSmoothingEnabled, false);
