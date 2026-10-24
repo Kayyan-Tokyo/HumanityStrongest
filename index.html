@@ -120,8 +120,8 @@
     .result-finish { margin: 12px 0 0; line-height: 1.7; color: #ffc45e; overflow-wrap: anywhere; }
     .story-note { font-size: 0.8rem; line-height: 1.7; color: #d8d4e4; }
     .result-reason { white-space: pre-line; font-size: 1rem; line-height: 1.9; overflow-wrap: anywhere; text-align: left; margin: 12px 0 0; }
-    .turn-status { margin: 0 0 16px; padding: 12px; border: 1px solid #ffbf60; border-radius: 8px; color: #ffcf89; line-height: 1.7; font-weight: 700; }
-    .match-score { margin: 0 0 16px; color: #ffcf89; font-weight: 700; line-height: 1.6; }
+    .turn-status { margin: 0 0 8px; padding: 0; border: 0; color: #ffcf89; font-size: 0.8rem; line-height: 1.5; font-weight: 700; overflow-wrap: anywhere; }
+    .match-score { margin: 0 0 4px; font-size: clamp(0.75rem, 3.1vw, 1rem); white-space: nowrap; color: #ffcf89; font-weight: 700; line-height: 1.6; }
     .card.used { opacity: 0.5; border-style: dashed; }
     .used-label { margin-top: auto; color: #d8d4e4; font-size: 0.75rem; }
     .selection-label { margin-top: auto; color: #ffcf89; font-size: 0.8rem; }
@@ -203,7 +203,24 @@
       .hand .card, .cpu-hand .card { padding: 16px 10px; gap: 12px; }
     }
     @media (max-width: 599px) {
-      body.in-game { padding: 16px 12px; }
+      body.in-game { padding: 8px 12px; }
+      main.playing { padding: 0; }
+      #hand-title, .battle-area h2 { font-size: 1rem; margin-bottom: 4px; }
+      .hand, .cpu-hand { margin: 6px 0; }
+      .battle-area { margin: 8px 0; }
+      .battle-arena { gap: 4px; }
+      .battle-side h3 { font-size: 0.75rem; margin-bottom: 3px; }
+      .battle-arena > .vs { font-size: 1rem; line-height: 1.2; }
+      .battle-arena .fighter-card { min-height: 80px; padding: 8px 12px; gap: 4px; }
+      .battle-arena .card-back { min-height: 64px; padding: 6px 4px; gap: 2px; }
+      .battle-arena .card-back > span:first-child { font-size: 1.25rem; }
+      #player-fighter:has(.empty-fighter) { min-height: 56px; }
+      .empty-fighter { font-size: 0.85rem; }
+      #hand-screen > h3 { margin: 8px 0 4px; font-size: 1rem; }
+      #hand-screen > .actions { margin-top: 8px; gap: 8px; }
+      .battle-area .actions button:not([hidden]) { margin-top: 6px; }
+      .battle-area .status { margin-top: 8px; }
+      #status { margin-top: 8px; }
     }
 
     .status {
@@ -270,11 +287,11 @@
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=card-motion-1" defer></script>
-  <script src="./js/battle.js?v=card-motion-1" defer></script>
-  <script src="./js/combat-styles.js?v=card-motion-1" defer></script>
-  <script src="./js/story.js?v=card-motion-1" defer></script>
-  <script src="./js/match.js?v=card-motion-1" defer></script>
-  <script src="./js/game.js?v=card-motion-1" defer></script>
+  <script src="./js/characters.js?v=compact-mobile-1" defer></script>
+  <script src="./js/battle.js?v=compact-mobile-1" defer></script>
+  <script src="./js/combat-styles.js?v=compact-mobile-1" defer></script>
+  <script src="./js/story.js?v=compact-mobile-1" defer></script>
+  <script src="./js/match.js?v=compact-mobile-1" defer></script>
+  <script src="./js/game.js?v=compact-mobile-1" defer></script>
 </body>
 </html>

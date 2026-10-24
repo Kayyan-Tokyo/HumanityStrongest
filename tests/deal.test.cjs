@@ -69,6 +69,9 @@ for(let i=0;i<3;i++){
   assert.equal(cpuCards()[i].querySelector('.card-name').textContent,c.name);
   assert.equal(cpuCards()[i].querySelector('.card-profile').textContent,`${c.age}歳 / ${c.height}cm / ${c.weight}kg`);
 }
+cards()[0].click();assert.match(ids['turn-status'].textContent,/選択済み/);
+cards()[0].click();assert.doesNotMatch(ids['turn-status'].textContent,/選択済み/);
+assert.equal(ids['fight-button'].disabled,true);
 function fight(winner){
   nextWinner=winner;
   const card=cards().find(c=>!c.disabled);

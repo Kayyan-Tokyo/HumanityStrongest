@@ -48,6 +48,9 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
           cpuHand:rect('#cpu-hand'),arena:rect('.battle-arena'),playerHand:rect('#hand')};
       });
       assert.equal(geometry.fits,true);assert.equal(geometry.overflow,false);
+      if(width>=375&&width<=430)assert.ok(geometry.playerHand.bottom<=812,'初期表示で両者の手札が画面内に収まる');
+      assert.equal(await page.locator('#match-score').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
+      assert.equal(await page.locator('#hand .card').evaluateAll(cards=>cards.every(c=>c.getBoundingClientRect().height>=56)),true);
       assert.ok(geometry.cpu.bottom<=geometry.vs.top&&geometry.vs.bottom<=geometry.player.top);
       assert.ok(geometry.cpuHand.bottom<=geometry.arena.top&&geometry.arena.bottom<=geometry.playerHand.top);
       const cpuProfiles=await page.locator('#cpu-hand .card').evaluateAll(cards=>cards.every(card=>{
