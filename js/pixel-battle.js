@@ -6,7 +6,7 @@
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
     player: { sourceFacing:1, src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ damage:{ src:'./assets/characters/spartan_hit_4f.png', sourceFacing:1, once:true, timeField:'hitTime', duration:400, knockback:3, anchor:[320,516], referenceHeight:467, frames:[[0,0,640,544],[640,0,640,544],[1280,0,640,544],[1920,0,640,544]] }, attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, hitOffset:[94,48], anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, referenceHeight:144, anchors:[[80.5,142],[87,142],[81.5,145],[85.5,144]], frames:[[31,34,153,142],[202,35,160,142],[414,14,150,145],[593,16,160,144]] } } },
-    cpu: { sourceFacing:-1, src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{ walk:{ src:'./assets/characters/sumo_walk_4f.png', sourceFacing:1, fps:6, anchor:[160,316], referenceHeight:300, frames:[[0,0,320,336],[320,0,320,336],[640,0,320,336],[960,0,320,336]] }, attack:{ src:'./assets/characters/sumo_slap_4f.png', sourceFacing:1, once:true, duration:500, hitOffset:[61,47], anchor:[256,476], referenceHeight:458, frames:[[0,0,704,496],[704,0,704,496],[1408,0,704,496],[2112,0,704,496]] } } }
+    cpu: { sourceFacing:-1, src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{ damage:{ src:'./assets/characters/sumo_hit_4f.png', sourceFacing:1, once:true, timeField:'hitTime', duration:400, knockback:3, anchor:[320,516], referenceHeight:466, frames:[[0,0,768,544],[768,0,768,544],[1536,0,768,544],[2304,0,768,544]] }, walk:{ src:'./assets/characters/sumo_walk_4f.png', sourceFacing:1, fps:6, anchor:[160,316], referenceHeight:300, frames:[[0,0,320,336],[320,0,320,336],[640,0,320,336],[960,0,320,336]] }, attack:{ src:'./assets/characters/sumo_slap_4f.png', sourceFacing:1, once:true, duration:500, hitOffset:[61,47], anchor:[256,476], referenceHeight:458, frames:[[0,0,704,496],[704,0,704,496],[1408,0,704,496],[2112,0,704,496]] } } }
   };
   // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
   const LAYOUT = { spriteScale:1.35, separation:18, edgePadding:8 };
@@ -84,7 +84,8 @@
       if (attack === 'player') {
         actors.player.attackTime = progress * 1000 - 200;
         actors.player.pose = progress >= .2 && progress < .7 ? 'attack' : 'idle';
-        actors.cpu.pose = progress >= .45 && progress < .7 ? 'damage' : 'idle';
+        actors.cpu.hitTime = progress * 1000 - 450;
+        actors.cpu.pose = progress >= .45 && progress < .85 ? 'damage' : 'idle';
         hit = progress >= .45 && progress < .575 ? Math.sin((progress - .45) / .125 * Math.PI) : 0;
       } else {
         actors.cpu.attackTime = progress * 1000 - 200;

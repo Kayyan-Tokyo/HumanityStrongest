@@ -26,5 +26,9 @@
   "spartan_hit_4f.png": {
     "nativeFacing": 1,
     "sha256": "36311453390ae8fd2c0bfd341462bf863927a09bf33a7cf46ae7f8c29e9267ff"
+  },
+  "sumo_hit_4f.png": {
+    "nativeFacing": 1,
+    "sha256": "f158552bcd0220cd079bd5de9c31d2822653335dea6dfb7379adffe414242015"
   }
 }
