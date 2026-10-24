@@ -121,15 +121,15 @@
   }
 
   function renderScore() {
-    const prefix = match.phase === 'finished' ? '試合終了' : `第${match.round}ラウンド / 最大3`;
+    const prefix = match.phase === 'finished' ? '試合終了' : `第${match.round}/3ラウンド`;
     get('match-score').textContent = `${prefix}　あなた ${match.playerWins}勝 — CPU ${match.cpuWins}勝`;
   }
 
   function renderTurn() {
     const playerFirst = match.firstSide === 'player';
     get('turn-status').textContent = playerFirst
-      ? 'あなたが先攻。カードを選んでください。'
-      : 'あなたが後攻。相手のカードを見て選んでください。';
+      ? 'あなたが先攻・カードを選択'
+      : 'あなたが後攻・相手を見てカードを選択';
     if (playerFirst) concealCpuFighter();
     else {
       showCpuFighter(match.cpuCard, false);
@@ -139,7 +139,7 @@
         moving = true; get('hand-screen').setAttribute('aria-busy','true'); renderHands();
         requestAnimationFrame(() => moveCard(source.isConnected ? source : [...get('cpu-hand').querySelectorAll('.card')].find(card => card.dataset.characterId === match.cpuCard.id), get('cpu-fighter'),
           () => { get('cpu-fighter').style.visibility = ''; },
-          () => { renderHands(); get('turn-status').textContent = 'あなたが後攻。あなたのターンです。相手のカードを見て選んでください。'; }));
+          () => { renderHands(); get('turn-status').textContent = 'あなたが後攻・相手を見てカードを選択'; }));
       }
     }
   }
@@ -161,7 +161,9 @@
     const done = () => {
       renderHands();
       [...handList.querySelectorAll('.card')].find(card => card.dataset.characterId === character.id).focus({preventScroll:true});
-      get('turn-status').textContent = match.firstSide === 'player' ? 'あなたが先攻。あなたのターンです。このカードで決定できます。' : 'あなたが後攻。あなたのターンです。このキャラで戦えます。';
+      get('turn-status').textContent = !selectedId
+        ? (match.firstSide === 'player' ? 'あなたが先攻・カードを選択' : 'あなたが後攻・相手を見てカードを選択')
+        : (match.firstSide === 'player' ? 'あなたが先攻・選択済み（カードを確定）' : 'あなたが後攻・選択済み（対戦できます）');
       get('status').textContent = selectedId ? `${character.name}を選択しました。` : '選択を解除しました。';
     };
     if (selectedId) moveCard(source, get('player-fighter'), render, done);
@@ -255,7 +257,7 @@
     window.HumanityMatch.commitPlayerCard(match, selectedId);
     stage = 'ready';
     renderHands();
-    get('turn-status').textContent = 'あなたが先攻。カードを決めました。相手のカードは対戦開始時に分かります。';
+    get('turn-status').textContent = 'あなたが先攻・確定済み／CPUは対戦開始時に判明';
     get('status').textContent = '「このキャラで戦う」で対戦を始めましょう。';
     fightButton.focus({ preventScroll: true });
   });
