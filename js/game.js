@@ -7,9 +7,11 @@
   let stage = 'title';
   let moving = false;
   let fast = false;
+  let mode = 'card';
+  let pixelRun = null;
   const pending = new Set();
   const reduced = () => !get('player-fighter').animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function skipEffects() { fast = true; for (const finish of [...pending]) finish(); }
+  function skipEffects() { fast = true; pixelRun?.skip(); for (const finish of [...pending]) finish(); }
   const wait = ms => new Promise(resolve => {
     if (fast || reduced() || document.hidden) { resolve(); return; }
     let timer; const finish = () => { clearTimeout(timer); pending.delete(finish); resolve(); };
@@ -32,6 +34,7 @@
     moving = value; get('hand-screen').setAttribute('aria-busy', String(value));
     get('skip-button').hidden = !value;
     get('return-button').disabled = value;
+    get('battle-mode').disabled = value;
     document.body.style.overflow = value ? 'hidden' : '';
     renderHands();
   }
@@ -57,6 +60,9 @@
     }
   }
   function clearEffects() {
+    pixelRun?.skip(); pixelRun = null;
+    get('battle-arena').classList.remove('pixel-active');
+    get('pixel-canvas').hidden = true; get('pixel-legend').hidden = true;
     get('hand-screen').dataset.phase='selecting';
     get('burn-effects').replaceChildren(); get('win-banner').hidden = true;
     get('impact-flash').style.opacity = '0';
@@ -64,6 +70,26 @@
       get(id).style.transform = ''; get(id).style.clipPath = ''; get(id).style.visibility = '';
       get(id).classList.remove('winner-card'); get(id).setAttribute('aria-hidden','false');
     }
+  }
+  function showPixelScene(result) {
+    get('battle-arena').classList.add('pixel-active');
+    get('pixel-canvas').hidden = false; get('pixel-legend').hidden = false;
+    get('pixel-canvas').setAttribute('aria-label', `青：あなたの${result.playerCard.name}、赤：CPUの${result.cpuCard.name}の自動戦闘`);
+  }
+
+  async function pixelEffects(result) {
+    showPixelScene(result);
+    get('hand-screen').dataset.phase = 'pixel-battle';
+    pixelRun = window.HumanityPixelBattle.play(get('pixel-canvas'), {
+      winner: result.winner, speed: Number(get('pixel-speed').value) || 1,
+      instant: fast || reduced() || Boolean(document.hidden),
+      onScene(scene) {
+        const messages = { entry:'闘技場へ登場', approach:'接近中', exchange:'攻撃と反撃', circle:'横へ回り込む', retreat:'一度距離を取る', finish:'最後の攻防', fall:'決着', victory:result.winner==='player'?'WIN！ あなた':'WIN！ CPU' };
+        const message = messages[scene.phase];
+        if(get('turn-status').textContent !== message) get('turn-status').textContent = message;
+      }
+    });
+    try { await pixelRun.finished; } finally { pixelRun = null; }
   }
   async function battleEffects(result) {
     const cpu = get('cpu-fighter'), player = get('player-fighter');
@@ -229,7 +255,8 @@
       }
       stage='battling';
       result=window.HumanityMatch.playRound(match,selectedId);
-      await battleEffects(result);
+      if (mode === 'pixel') await pixelEffects(result);
+      else await battleEffects(result);
     } finally {
       // 演出だけが失敗しても、確定済みの結果を失わない。
       if(result) finishRound(result);
@@ -305,6 +332,28 @@
     if (!moving && (stage === 'hand' || stage === 'finished')) newMatch();
   });
   get('skip-button').addEventListener('click', skipEffects);
+  get('pixel-speed').addEventListener('change', () => pixelRun?.setSpeed(Number(get('pixel-speed').value)));
+  get('battle-mode').addEventListener('change', () => {
+    if (moving) { get('battle-mode').value = mode; return; }
+    mode = get('battle-mode').value === 'pixel' ? 'pixel' : 'card';
+    get('pixel-speed-label').hidden = mode !== 'pixel';
+    if (['result', 'finished'].includes(stage)) {
+      const result = match.rounds.at(-1);
+      clearEffects();
+      get('hand-screen').dataset.phase = 'result';
+      if (mode === 'pixel') {
+        showPixelScene(result);
+        window.HumanityPixelBattle.drawScene(get('pixel-canvas'), window.HumanityPixelBattle.sampleScene(window.HumanityPixelBattle.DURATION, result.winner));
+      } else {
+        const winner = get(result.winner === 'player' ? 'player-fighter' : 'cpu-fighter');
+        const loser = get(result.winner === 'player' ? 'cpu-fighter' : 'player-fighter');
+        loser.style.visibility = 'hidden'; loser.setAttribute('aria-hidden', 'true');
+        winner.classList.add('winner-card');
+        get('win-banner').textContent = result.winner === 'player' ? 'WIN！ あなた' : 'WIN！ CPU';
+        get('win-banner').hidden = false;
+      }
+    }
+  });
   document.addEventListener?.('keydown', event=>{if(event.key==='Escape'&&moving)skipEffects();});
   document.addEventListener?.('visibilitychange', () => { if(document.hidden) skipEffects(); });
   if(window.matchMedia) window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', event=>{if(event.matches)skipEffects();});
