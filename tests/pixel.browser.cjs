@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..'), html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () => "url('data:image/webp;base64," + fs.readFileSync(path.join(root, 'assets/backgrounds/colosseum.webp')).toString('base64') + "')")
   .replace("url('./assets/backgrounds/colosseum_side.webp')", () => "url('data:image/webp;base64," + fs.readFileSync(path.join(root, 'assets/backgrounds/colosseum_side.webp')).toString('base64') + "')")
-  .replace(/<script src="([^"]+)" defer><\/script>/g, (_, src) => '<script>' + fs.readFileSync(path.join(root, src.split('?')[0]), 'utf8').replace(/\.\/assets\/characters\/(spartan_idle|sumo_idle)\.png/g, (_, name) => 'data:image/png;base64,' + fs.readFileSync(path.join(root, 'assets/characters', name + '.png')).toString('base64')) + '</script>');
+  .replace(/<script src="([^"]+)" defer><\/script>/g, (_, src) => '<script>' + fs.readFileSync(path.join(root, src.split('?')[0]), 'utf8').replace(/\.\/assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f)\.png/g, (_, name) => 'data:image/png;base64,' + fs.readFileSync(path.join(root, 'assets/characters', name + '.png')).toString('base64')) + '</script>');
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox', '--disable-crashpad-for-testing'] });
@@ -13,6 +13,19 @@ const content = html.replace("url('./assets/backgrounds/colosseum.webp')", () =>
       const page = await context.newPage(), errors = []; page.setDefaultTimeout(20000);
       page.on('pageerror', e => errors.push(e.message));
       await page.setContent(content);
+      const frames = await page.evaluate(async () => {
+        await HumanityPixelBattle.ready;
+        const canvas = document.querySelector('#pixel-canvas'), frames = [];
+        for (const time of [1100,1250,1400,1550]) {
+          HumanityPixelBattle.drawScene(canvas, HumanityPixelBattle.sampleScene(time, 'player'));
+          if (canvas.dataset.playerWalking !== 'true') throw Error('歩行画像を使用していない');
+          frames.push(canvas.dataset.playerFrame);
+        }
+        HumanityPixelBattle.drawScene(canvas, HumanityPixelBattle.sampleScene(3000, 'player'));
+        if (canvas.dataset.playerWalking !== 'false') throw Error('待機へ復帰していない');
+        return frames;
+      });
+      assert.equal(new Set(frames).size, 4);
       await page.evaluate(() => {
         const deal = HumanityMatch.deal, resolve = HumanityBattle.resolveRound, story = HumanityStory.generateStory;
         const play = HumanityPixelBattle.play;

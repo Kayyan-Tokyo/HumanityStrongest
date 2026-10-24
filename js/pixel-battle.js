@@ -5,7 +5,7 @@
   // 演出専用の固定配役。正式キャラクターのIDや能力とは対応させない。
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
-    player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{} },
+    player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, frames:[[31,34,153,145],[202,35,160,145],[414,14,150,166],[593,16,160,161]] } } },
     cpu: { src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{} }
   };
   // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
@@ -17,14 +17,26 @@
     return { ...actor, x:Math.max(margin, Math.min(WIDTH - margin, actor.x + (side === 'player' ? -LAYOUT.separation : LAYOUT.separation))) };
   }
   const images = {};
-  const ready = Promise.all(Object.entries(SPRITES).map(([side, config]) => new Promise(resolve => {
+  const sources = Object.entries(SPRITES).flatMap(([side, config]) => [
+    [side, config.src], ...Object.entries(config.poses).map(([pose, clip]) => [side + ':' + pose, clip.src])
+  ]);
+  const ready = Promise.all(sources.map(([key, src]) => new Promise(resolve => {
     if (typeof Image === 'undefined') { resolve(); return; }
     const image = new Image();
     const timer = setTimeout(() => resolve(), 5000);
-    image.onload = () => { clearTimeout(timer); images[side] = image; resolve(); };
+    image.onload = () => { clearTimeout(timer); images[key] = image; resolve(); };
     image.onerror = () => { clearTimeout(timer); resolve(); };
-    image.src = config.src;
+    image.src = src;
   })));
+  // 経過時間でコマを選ぶ共通処理。速度変更は既存の演出時間に追従する。
+  function spriteFrame(side, actor, time) {
+    const config = SPRITES[side], clip = actor.moving && config.poses[actor.pose];
+    const animated = Boolean(clip && images[side + ':' + actor.pose]);
+    const index = animated ? Math.floor(time * clip.fps / 1000) % clip.frames.length : 0;
+    return { image:animated ? images[side + ':' + actor.pose] : images[side],
+      frame:animated ? clip.frames[index] : config.frame, index, animated,
+      flip:animated ? actor.direction < 0 : side === 'cpu' };
+  }
   const GROUND_Y = 212;
   const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
   const ease = n => { const p = clamp(n, 0, 1); return p * p * (3 - 2 * p); };
@@ -68,7 +80,7 @@
 
   // 16×24ピクセルの仮キャラを1.5倍で描く。足元を基準に奥から描画する。
   function drawActor(ctx, actor, side, time) {
-    if (images[side]) { drawSprite(ctx, actor, side); return; }
+    if (images[side]) { drawSprite(ctx, actor, side, time); return; }
     const fallen = actor.pose === 'fall' || actor.pose === 'defeated';
     const walk = actor.pose === 'walk' ? actor.frame * 2 - 1 : 0;
     const bob = actor.pose === 'idle' ? Math.floor(time / 400) % 2 : 0;
@@ -112,10 +124,9 @@
     ctx.restore();
   }
 
-  function drawSprite(ctx, actor, side) {
+  function drawSprite(ctx, actor, side, time) {
     const config = SPRITES[side];
-    const frames = config.poses[actor.pose] || [config.frame];
-    const frame = frames[actor.frame % frames.length];
+    const selected = spriteFrame(side, actor, time), frame = selected.frame;
     const height = config.height * LAYOUT.spriteScale, width = height * frame[2] / frame[3];
     const fallen = actor.pose === 'fall' || actor.pose === 'defeated';
     // 影と画像が同じ足元座標を使う。歩行中も上下へ浮かせない。
@@ -123,11 +134,11 @@
     ctx.beginPath(); ctx.ellipse(actor.x, actor.y + 1, width * .30, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.save(); ctx.translate(Math.round(actor.x), Math.round(actor.y) - (fallen ? width / 2 * Math.sin(actor.fall * .18) : 0));
     if (fallen) { ctx.rotate((side === 'player' ? -1 : 1) * actor.fall * .18); ctx.scale(1, 1 - actor.fall * .60); }
-    if (actor.pose === 'walk') ctx.scale(1, actor.frame ? .98 : 1);
+    if (actor.pose === 'walk' && !selected.animated) ctx.scale(1, actor.frame ? .98 : 1);
     if (actor.pose === 'attack') { ctx.rotate(side === 'player' ? .07 : -.07); ctx.scale(1.04, .98); }
     if (actor.pose === 'damage') ctx.rotate(side === 'player' ? -.08 : .08);
-    if (side === 'cpu') ctx.scale(-1, 1);
-    ctx.drawImage(images[side], ...frame, -width / 2, -height, width, height);
+    if (selected.flip) ctx.scale(-1, 1);
+    ctx.drawImage(selected.image, ...frame, -width / 2, -height, width, height);
     if (actor.pose === 'attack' || actor.pose === 'damage') {
       ctx.fillStyle = actor.pose === 'attack' ? '#ffe2a2' : '#ffb476';
       ctx.fillRect(side === 'cpu' ? -width / 2 - 3 : width / 2, -height / 2, 3, 3);
@@ -144,7 +155,17 @@
     if (!ctx) return false;
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
     ctx.imageSmoothingEnabled = false;
-    for (const side of ['cpu', 'player'].sort((a, b) => scene[a].y - scene[b].y)) drawActor(ctx, projectActor(scene[side], side), side, scene.time);
+    for (const side of ['cpu', 'player'].sort((a, b) => scene[a].y - scene[b].y)) {
+      const actor = projectActor(scene[side], side);
+      const a = projectActor(sampleScene(Math.max(0, scene.time - 5), scene.winner)[side], side);
+      const b = projectActor(sampleScene(Math.min(DURATION, scene.time + 5), scene.winner)[side], side);
+      actor.moving = actor.pose === 'walk' && Math.abs(b.x - a.x) > .001;
+      actor.direction = Math.sign(b.x - a.x);
+      const selected = spriteFrame(side, actor, scene.time);
+      canvas.dataset[side + 'Frame'] = String(selected.index);
+      canvas.dataset[side + 'Walking'] = String(selected.animated);
+      drawActor(ctx, actor, side, scene.time);
+    }
     if (scene.hit > 0) {
       const x = (scene.player.x + scene.cpu.x) / 2, y = GROUND_Y - 30;
       ctx.globalAlpha = scene.hit; ctx.fillStyle = '#ffe8a1';
@@ -207,5 +228,5 @@
     return control;
   }
 
-  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, LAYOUT, projectActor, ready, sampleScene, drawScene, play };
+  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, LAYOUT, projectActor, spriteFrame, ready, sampleScene, drawScene, play };
 })();
