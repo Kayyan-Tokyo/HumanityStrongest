@@ -117,6 +117,7 @@
     .round-result table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.85rem; }
     .round-result caption { font-size: 0.8rem; margin-bottom: 8px; color: #d8d4e4; }
     .round-result th, .round-result td { padding: 8px 2px; border-bottom: 1px solid #625575; overflow-wrap: anywhere; }
+    .result-finish { margin: 12px 0 0; line-height: 1.7; color: #ffc45e; overflow-wrap: anywhere; }
     .story-note { font-size: 0.8rem; line-height: 1.7; color: #d8d4e4; }
     .result-reason { white-space: pre-line; font-size: 1rem; line-height: 1.9; overflow-wrap: anywhere; text-align: left; margin: 12px 0 0; }
     .turn-status { margin: 0 0 16px; padding: 12px; border: 1px solid #ffbf60; border-radius: 8px; color: #ffcf89; line-height: 1.7; font-weight: 700; }
@@ -222,7 +223,7 @@
       <p id="match-score" class="match-score" role="status"></p>
       <p id="turn-status" class="turn-status" role="status"></p>
       <h2 id="hand-title" tabindex="-1">CPUの手札</h2>
-      <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの公開手札3枚"></ul>
+      <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの手札3枚"></ul>
       <section id="battle-area" class="battle-area" aria-labelledby="battle-title">
         <h2 id="battle-title" tabindex="-1">バトルエリア</h2>
         <div class="battle-arena" data-attack-axis="y">
@@ -253,22 +254,24 @@
           <h4 id="result-headline" class="result-headline"></h4>
           <p class="story-note">能力と勝敗からふくらませた物語です。</p>
           <p id="result-reason" class="result-reason"></p>
+          <p id="result-finish" class="result-finish"></p>
         </section>
       </section>
       <h3>あなたの手札</h3>
       <ul id="hand" class="hand" aria-label="あなたの手札3枚"></ul>
       <div class="actions">
-        <button id="confirm-button" type="button" hidden disabled>このカードを公開する</button>
+        <button id="confirm-button" type="button" hidden disabled>このカードで決定</button>
         <button id="fight-button" type="button" disabled>このキャラで戦う</button>
         <button id="redeal-button" class="secondary" type="button">新しい試合</button>
       </div>
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=saved-stories-1" defer></script>
-  <script src="./js/battle.js?v=saved-stories-1" defer></script>
-  <script src="./js/story.js?v=saved-stories-1" defer></script>
-  <script src="./js/match.js?v=saved-stories-1" defer></script>
-  <script src="./js/game.js?v=saved-stories-1" defer></script>
+  <script src="./js/characters.js?v=combat-styles-1" defer></script>
+  <script src="./js/battle.js?v=combat-styles-1" defer></script>
+  <script src="./js/combat-styles.js?v=combat-styles-1" defer></script>
+  <script src="./js/story.js?v=combat-styles-1" defer></script>
+  <script src="./js/match.js?v=combat-styles-1" defer></script>
+  <script src="./js/game.js?v=combat-styles-1" defer></script>
 </body>
 </html>
