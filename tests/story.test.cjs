@@ -20,6 +20,19 @@ for(const playerCard of characters)for(const cpuCard of characters){
     const decision=b.resolveRound(playerCard,cpuCard,()=>roll);
     const result={playerCard,cpuCard,winner:decision.winner,decision,firstSide,round};
     const story=s.generateStory(result);count++;
+    assert.equal(s.scene.validate(story.scene),true);
+    assert.equal(story.scene.state.ended,'winner');
+    assert.equal(story.scene.events.at(-1).actor,'winner');
+    assert.ok(Object.isFrozen(story.scene)&&Object.isFrozen(story.scene.events));
+    for(const event of story.scene.events){
+      assert.ok(['far','near','grapple'].includes(event.after.distance));
+      for(const pose of Object.values(event.after.posture))assert.ok(['standing','unbalanced','ground'].includes(pose));
+      if(Object.values(event.after.holds).some(Boolean))assert.equal(event.after.distance,'grapple');
+      if(event.after.top)assert.ok(Object.values(event.after.posture).every(pose=>pose==='ground'));
+    }
+    for(const [index,text]of [story.opening,story.middle,story.ending].entries()){
+      assert.ok(text.startsWith(story.scene.events.filter(event=>event.paragraph===index).map(event=>event.text).join('')));
+    }
     min=Math.min(min,story.body.length);max=Math.max(max,story.body.length);
     assert.ok(story.body.length>=150&&story.body.length<=250,`${story.body.length}: ${story.body}`);
     assert.ok(story.body.includes(playerCard.name));assert.ok(story.body.includes(cpuCard.name));
@@ -47,12 +60,12 @@ for(const playerCard of characters)for(const cpuCard of characters){
       assert.ok(story.middle.includes(story.winnerAlias+'の'));
     }
     if(story.finish==='打撃からの制圧'){
-      assert.ok(story.ending.startsWith(story.winnerAlias+'はその隙に'));
+      assert.ok(story.ending.includes(story.winnerAlias+'はその隙に'));
       assert.match(story.ending,/組み付き、地面へ押し倒して動きを封じ/);
     }
     if(story.finish==='膝蹴りによるKO')assert.match(story.ending,/膝蹴り.*命中.*KO/);
     // 短縮名を使う中盤の各文で、行動主体を直前の勝者または明示した敗者に保つ。
-    assert.ok(story.middle.startsWith(story.winnerAlias+'は'));
+    assert.ok([story.winnerAlias,story.loserAlias].some(name=>story.middle.startsWith(name)));
     assert.match(story.middle.split(/[。！]/).filter(Boolean).at(-1),new RegExp('^'+story.loserAlias+'は'));
     assert.equal(story.body.includes('KO'),story.finish.includes('KO'));
     assert.equal(story.body.includes('降参'),/関節技|絞め技/.test(story.finish));
@@ -79,7 +92,7 @@ for(const card of characters)for(const finish of profiles[card.id].finishes)asse
 // 重点対戦は、勝者が逆転すると距離・組み・蹴り・抵抗からの決着も変わる。
 const focus=[
  ['ww2-us-soldier','gladiator',/米兵のパンチ.*剣闘士[\s\S]*米兵はその隙に剣闘士へ組み付/,/剣闘士のパンチ.*米兵[\s\S]*剣闘士はその隙に大戦期の米兵へ組み付/],
- ['heavyweight-boxer','heavyweight-judoka',/体を離[\s\S]*ジャブ[\s\S]*フック/,/ジャブ[\s\S]*腕の内側[\s\S]*大外刈り/],
+ ['heavyweight-boxer','heavyweight-judoka',/手を振りほど[\s\S]*ジャブ[\s\S]*フック/,/ジャブ[\s\S]*懐へ[\s\S]*大外刈り/],
  ['muay-thai','mma-fighter',/タックル[\s\S]*上体[\s\S]*膝蹴り/,/ローキック[\s\S]*(打撃|タックル)[\s\S]*(KO|関節技)/],
  ['oil-wrestler','spartan',/打撃[\s\S]*胴[\s\S]*足掛け/,/胴に腕[\s\S]*体を前[\s\S]*投げ/],
  ['us-office-worker','heavyweight-boxer',/ジャブ[\s\S]*肩を低く[\s\S]*体当たり/,/ぎこちなく[\s\S]*ストレート[\s\S]*フック/]
