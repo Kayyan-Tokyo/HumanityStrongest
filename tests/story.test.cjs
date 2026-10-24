@@ -43,6 +43,15 @@ for(const playerCard of characters)for(const cpuCard of characters){
     assert.notEqual(story.winnerAlias,story.loserAlias);
     for(const sentence of story.body.split(/[。！]/).filter(Boolean))assert.ok(sentence.trim().length<=70, sentence);
     assert.ok(story.middle.includes(story.loserAlias));
+    assert.doesNotMatch(story.opening+story.middle,/！/);
+    assert.ok((story.body.match(/！/g)||[]).length<=1);
+    for(let i=1;i<story.scene.events.length;i++){
+      const prev=story.scene.events[i-1],event=story.scene.events[i];
+      if(prev.actor===event.actor&&prev.paragraph===event.paragraph){
+        const name=event.actor==='winner'?story.winnerAlias:story.loserAlias;
+        assert.ok(!event.text.startsWith(name+'は'));
+      }
+    }
     assert.doesNotMatch(story.body,/相手|両者|彼|\{w\}|\{l\}/);
     const winnerCard=decision.winner==='player'?playerCard:cpuCard;
     const winnerProfile=context.window.COMBAT_STYLES[winnerCard.id];
@@ -60,7 +69,8 @@ for(const playerCard of characters)for(const cpuCard of characters){
       assert.ok(story.middle.includes(story.winnerAlias+'の'));
     }
     if(story.finish==='打撃からの制圧'){
-      assert.ok(story.ending.includes(story.winnerAlias+'はその隙に'));
+      assert.ok(story.ending.includes('その隙に'));
+      assert.equal(story.scene.events.at(-1).actor,'winner');
       assert.match(story.ending,/組み付き、地面へ押し倒して動きを封じ/);
     }
     if(story.finish==='膝蹴りによるKO')assert.match(story.ending,/膝蹴り.*命中.*KO/);
@@ -91,7 +101,7 @@ for(const variations of byPair.values())assert.ok(variations.size>1);
 for(const card of characters)for(const finish of profiles[card.id].finishes)assert.ok(finishCoverage.has(`${card.id}|${finish.label}`));
 // 重点対戦は、勝者が逆転すると距離・組み・蹴り・抵抗からの決着も変わる。
 const focus=[
- ['ww2-us-soldier','gladiator',/米兵のパンチ.*剣闘士[\s\S]*米兵はその隙に剣闘士へ組み付/,/剣闘士のパンチ.*米兵[\s\S]*剣闘士はその隙に大戦期の米兵へ組み付/],
+ ['ww2-us-soldier','gladiator',/米兵のパンチ.*剣闘士[\s\S]*その隙に剣闘士へ組み付/,/剣闘士のパンチ.*米兵[\s\S]*その隙に大戦期の米兵へ組み付/],
  ['heavyweight-boxer','heavyweight-judoka',/手を振りほど[\s\S]*ジャブ[\s\S]*フック/,/ジャブ[\s\S]*懐へ[\s\S]*大外刈り/],
  ['muay-thai','mma-fighter',/タックル[\s\S]*上体[\s\S]*膝蹴り/,/ローキック[\s\S]*(打撃|タックル)[\s\S]*(KO|関節技)/],
  ['oil-wrestler','spartan',/打撃[\s\S]*胴[\s\S]*足掛け/,/胴に腕[\s\S]*体を前[\s\S]*投げ/],

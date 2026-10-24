@@ -95,14 +95,14 @@
     },
     "打撃からの制圧": {
       "range": "strike",
-      "counter": "{w}のパンチが{l}に当たり、体勢を崩した！",
+      "counter": "{w}のパンチが{l}に当たり、上体をのけぞらせた！",
       "resistance": "{l}は顔をかばい、後ずさりしながら腕を伸ばす。",
       "finish": "{w}はその隙に{l}へ組み付き、地面へ押し倒して動きを封じた！",
       "headline": "パンチから一気に制圧！"
     },
     "崩しからの投げ": {
       "range": "clinch",
-      "counter": "{w}は体をさばいて{l}の腕を取り、斜めに引いた。",
+      "counter": "{w}は体を横へさばき、{l}の手首をつかんで斜めに引いた。",
       "resistance": "{l}は倒れまいと踏ん張り直し、片足を浮かせる。",
       "finish": "{w}は浮いた足が戻る前に{l}を投げ、地面で押さえ込んだ！",
       "headline": "体さばきから鮮やかな投げ！"
@@ -416,7 +416,18 @@
     const scene = createScene(), w = ALIASES[winCard.id], l = ALIASES[loseCard.id];
     const plan = FINISHES[finish.label], attack = ATTACKS[loseCard.id];
     const render = text => text.replaceAll('{w}', w).replaceAll('{l}', l).replaceAll('相手', l);
-    const act = (action, actor, text, paragraph) => advance(scene, action, actor, text, paragraph);
+    // 同じ人物が続けて動くときだけ主語を引き継ぐ。段落や人物が変われば必ず戻す。
+    let emphasized = false;
+    const act = (action, actor, text, paragraph) => {
+      const previous = scene.events.at(-1), name = actor === 'winner' ? w : l;
+      if (previous?.actor === actor && previous.paragraph === paragraph && text.startsWith(`${name}は`)) text = text.slice(name.length + 1);
+      // 感嘆符は決着の瞬間だけに絞る。状態と同じ文章を記録・表示する。
+      text = text.replace(/！/g, () => {
+        if (paragraph !== 2 || emphasized) return '。';
+        emphasized = true; return '！';
+      });
+      return advance(scene, action, actor, text, paragraph);
+    };
     const freeHands = paragraph => {
       if (scene.state.distance !== 'grapple') return;
       const own = scene.state.holds.winner;
@@ -435,7 +446,7 @@
     const hold = (kind, paragraph) => {
       if (scene.state.holds.winner) return;
       freeNear(paragraph);
-      act(kind, 'winner', `${w}は${scene.events.at(-1)?.action === 'release' ? '踏み込んで' : ''}${l}の${kind === 'hold_arm' ? '腕を取った' : '胴へ組み付いた'}。`, paragraph);
+      act(kind, 'winner', `${w}は${scene.events.at(-1)?.action === 'release' ? '踏み込んで' : ''}${l}の${kind === 'hold_arm' ? '手首をつかんだ' : '胴へ組み付いた'}。`, paragraph);
     };
 
     act('approach', 'loser', `「${loseCard.name}」と「${winCard.name}」が${compact ? '近づく' : '間合いを詰める'}。`, 0);
@@ -485,13 +496,15 @@
       act('sweep', 'winner', `${w}はスイープで上下を返し、${l}の上に回った。`, 2);
       finishText = `${w}は首へ腕を回し、絞め技で${l}を降参させた！`;
     }
-    if (final === 'lock') finishText = `${w}は伸びた腕を取り直して関節技を決め、${l}の降参を引き出した！`;
+    if (final === 'lock') finishText = `${w}は伸びた腕を胸に抱え、肘を伸ばす関節技を決めた！${l}は逃れられず降参した。`;
     act(final, 'winner', finishText, 2);
     const paragraphs = [0, 1, 2].map(index => scene.events.filter(event => event.paragraph === index).map(event => event.text).join(''));
     const upset = /番狂わせ|不利な予想/.test(suffix), close = /接戦|競り合/.test(suffix);
-    paragraphs[2] += ['ko', 'knee_ko'].includes(final)
-      ? upset ? `${close ? '接戦を制し、' : ''}${w}が番狂わせのKO勝利！` : `${close ? '接戦を制し、' : ''}${w}のKO勝利！`
+    const victoryType = ['ko', 'knee_ko'].includes(final) ? 'KO' : '';
+    paragraphs[2] += ['ko', 'knee_ko', 'lock', 'choke'].includes(final)
+      ? upset ? `${close ? '接戦を制し、' : ''}${w}が番狂わせの${victoryType}勝利。` : `${close ? '接戦を制し、' : ''}${w}の${victoryType}勝利。`
       : suffix.replaceAll('相手', l);
+    paragraphs[2] = paragraphs[2].replace(/！/g, (mark, index) => index === paragraphs[2].indexOf('！') ? mark : '。');
     const body = paragraphs.join('\n\n');
     if (body.length < 150 || body.length > 250) throw new SceneError('文字量に合う別の展開が必要');
     scene.paragraphs = Object.freeze(paragraphs);
