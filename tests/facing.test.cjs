@@ -1,7 +1,8 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const math=Object.create(Math);math.random=()=>{throw Error('乱数消費');};
 const ctx=vm.createContext({window:{},Math:math,setTimeout,clearTimeout,Image:class{set src(value){this.srcValue=value;this.onload();}}});
-vm.runInContext(fs.readFileSync(process.env.PIXEL_SCRIPT || 'js/pixel-battle.js','utf8'),ctx);const api=ctx.window.HumanityPixelBattle;
+vm.runInContext(fs.readFileSync('js/sprite-registry.js','utf8'), ctx);
+vm.runInContext(fs.readFileSync(process.env.PIXEL_SCRIPT || 'js/pixel-battle.js','utf8'),ctx);const rootApi=ctx.window.HumanityPixelBattle;const api=rootApi.createRenderer?rootApi.createRenderer({playerId:'spartan',cpuId:'sumo'}):rootApi;
 const oracle=JSON.parse(fs.readFileSync('tests/fixtures/sprite-native-facing.json','utf8'));
 for(const [name,entry]of Object.entries(oracle))assert.equal(require('crypto').createHash('sha256').update(fs.readFileSync('assets/characters/'+name)).digest('hex'),entry.sha256);
 const log=[];const context=new Proxy({drawImage:(image,...args)=>log.push({image,args,matrix:[...matrix]}),scale:(x,y)=>{matrix[0]*=x;matrix[1]*=y;},translate:(x,y)=>{matrix[2]+=x;matrix[3]+=y;},save:()=>{stack.push([...matrix]);},restore:()=>{matrix=stack.pop();}}, {get:(o,p)=>p in o?o[p]:()=>{}});

@@ -271,7 +271,7 @@
     .battle-arena.pixel-active { --arena-background-image:url('./assets/backgrounds/colosseum_side.webp'); --arena-background-overlay:rgb(10 9 15 / 32%); display:block; aspect-ratio:4 / 3; }
     .pixel-active > .battle-side, .pixel-active > .vs, .pixel-active > #impact-flash, .pixel-active > #burn-effects { display:none; }
     #pixel-canvas { position:absolute; inset:0; display:block; width:100%; height:100%; image-rendering:pixelated; border-radius:12px; }
-    .pixel-legend { position:absolute; bottom:3px; left:50%; transform:translateX(-50%); margin:0; padding:3px 8px; border-radius:6px; background:#100e19dd; color:#f8fafc; font-size:0.7rem; white-space:nowrap; pointer-events:none; }
+    .pixel-legend { position:absolute; bottom:3px; left:50%; transform:translateX(-50%); margin:0; padding:3px 8px; border-radius:6px; background:#100e19dd; color:#f8fafc; font-size:0.7rem; width:max-content; max-width:calc(100% - 12px); text-align:center; overflow-wrap:anywhere; pointer-events:none; }
     .pixel-legend .blue { color:#8cc5ff; } .pixel-legend .red { color:#ffaaaa; }
   </style>
 </head>
@@ -301,8 +301,8 @@
       <section id="battle-area" class="battle-area" aria-labelledby="battle-title">
         <h2 id="battle-title" tabindex="-1">バトルエリア</h2>
         <div id="battle-arena" class="battle-arena" data-attack-axis="y">
-          <canvas id="pixel-canvas" width="320" height="240" role="img" aria-label="ドット絵による自動戦闘" hidden>あなたがスパルタ兵、CPUが力士の仮画像による自動戦闘です。結果は戦闘後のリザルトで確認できます。</canvas>
-          <p id="pixel-legend" class="pixel-legend" hidden><span class="blue">あなた：スパルタ兵</span> ／ <span class="red">CPU：力士</span></p>
+          <canvas id="pixel-canvas" width="320" height="240" role="img" aria-label="ドット絵による自動戦闘" hidden>選ばれたキャラクターによる自動戦闘です。結果は戦闘後のリザルトで確認できます。</canvas>
+          <p id="pixel-legend" class="pixel-legend" hidden><span class="blue">あなた</span> ／ <span class="red">CPU</span></p>
           <section class="battle-side battle-side--cpu" data-attack-direction="down" aria-labelledby="cpu-label">
             <h3 id="cpu-label">CPU</h3>
             <div id="cpu-fighter" class="fighter-slot">
@@ -344,12 +344,13 @@
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=sumo-hit-1" defer></script>
-  <script src="./js/battle.js?v=sumo-hit-1" defer></script>
-  <script src="./js/combat-styles.js?v=sumo-hit-1" defer></script>
-  <script src="./js/story.js?v=sumo-hit-1" defer></script>
-  <script src="./js/match.js?v=sumo-hit-1" defer></script>
-  <script src="./js/pixel-battle.js?v=sumo-hit-1" defer></script>
-  <script src="./js/game.js?v=sumo-hit-1" defer></script>
+  <script src="./js/characters.js?v=sprite-registry-1" defer></script>
+  <script src="./js/battle.js?v=sprite-registry-1" defer></script>
+  <script src="./js/combat-styles.js?v=sprite-registry-1" defer></script>
+  <script src="./js/story.js?v=sprite-registry-1" defer></script>
+  <script src="./js/match.js?v=sprite-registry-1" defer></script>
+  <script src="./js/sprite-registry.js?v=sprite-registry-1" defer></script>
+  <script src="./js/pixel-battle.js?v=sprite-registry-1" defer></script>
+  <script src="./js/game.js?v=sprite-registry-1" defer></script>
 </body>
 </html>

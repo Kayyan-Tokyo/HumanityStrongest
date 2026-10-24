@@ -2,38 +2,65 @@
   'use strict';
   // 描画専用。能力値・判定API・乱数は参照しない。
   const WIDTH = 320, HEIGHT = 240, DURATION = 10000;
-  // 演出専用の固定配役。正式キャラクターのIDや能力とは対応させない。
-  // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
-  const SPRITES = {
-    player: { sourceFacing:1, src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ damage:{ src:'./assets/characters/spartan_hit_4f.png', sourceFacing:1, once:true, timeField:'hitTime', duration:400, knockback:3, anchor:[320,516], referenceHeight:467, frames:[[0,0,640,544],[640,0,640,544],[1280,0,640,544],[1920,0,640,544]] }, attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, hitOffset:[94,48], anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, referenceHeight:144, anchors:[[80.5,142],[87,142],[81.5,145],[85.5,144]], frames:[[31,34,153,142],[202,35,160,142],[414,14,150,145],[593,16,160,144]] } } },
-    cpu: { sourceFacing:-1, src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{ damage:{ src:'./assets/characters/sumo_hit_4f.png', sourceFacing:1, once:true, timeField:'hitTime', duration:400, knockback:3, anchor:[320,516], referenceHeight:466, frames:[[0,0,768,544],[768,0,768,544],[1536,0,768,544],[2304,0,768,544]] }, walk:{ src:'./assets/characters/sumo_walk_4f.png', sourceFacing:1, fps:6, anchor:[160,316], referenceHeight:300, frames:[[0,0,320,336],[320,0,320,336],[640,0,320,336],[960,0,320,336]] }, attack:{ src:'./assets/characters/sumo_slap_4f.png', sourceFacing:1, once:true, duration:500, hitOffset:[61,47], anchor:[256,476], referenceHeight:458, frames:[[0,0,704,496],[704,0,704,496],[1408,0,704,496],[2112,0,704,496]] } } }
-  };
+  const assetCache = new Map(), warnings = new Set();
+  function warn(id, reason) {
+    const message = `[HumanitySprites] ${id}: ${reason}`;
+    if (!warnings.has(message)) { warnings.add(message); console.warn(message); }
+  }
+  function loadAsset(src) {
+    if (assetCache.has(src)) return assetCache.get(src).promise;
+    const record = { image:null };
+    assetCache.set(src, record);
+    record.promise = new Promise(resolve => {
+      if (typeof Image === 'undefined') { resolve(); return; }
+      const image = new Image();
+      let settled = false;
+      const finish = loaded => {
+        if (settled) return;
+        settled = true; clearTimeout(timer);
+        if (loaded) record.image = image;
+        resolve();
+      };
+      const timer = setTimeout(() => finish(false), 5000);
+      image.onload = () => finish(true);
+      image.onerror = () => finish(false);
+      image.src = src;
+    });
+    return record.promise;
+  }
+  const imageFor = src => assetCache.get(src)?.image;
+
+  // One immutable casting per round. Separate renderers cannot reuse another character's image.
+  function createRenderer({ playerId, cpuId, registry = window.HumanitySprites } = {}) {
+    const ids = { player:playerId, cpu:cpuId };
+    const SPRITES = {};
+    for (const side of ['player', 'cpu']) {
+      const id = ids[side], entry = registry?.[id];
+      SPRITES[side] = { sourceFacing:1, height:54, frame:[0,0,24,24], ...entry, poses:entry?.poses || {} };
+      if (id != null && !entry?.src) warn(id, entry ? 'マスター画像が未登録です。仮キャラクターで続行します。' : 'IDが登録表にありません。仮キャラクターで続行します。');
+    }
   // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
   const LAYOUT = { spriteScale:1.35, separation:18, edgePadding:8 };
-  function projectActor(actor, side) {
+  function projectActor(actor, side, opponent) {
     const config = SPRITES[side];
     const halfWidth = config.height * LAYOUT.spriteScale * config.frame[2] / config.frame[3] / 2;
     const margin = halfWidth + LAYOUT.edgePadding;
-    const attackOffset = side === 'cpu' && actor.pose === 'attack' ? 8 * Math.sin(actor.attackTime / 500 * Math.PI) : 0;
-    return { ...actor, x:Math.max(margin, Math.min(WIDTH - margin, actor.x + (side === 'player' ? -LAYOUT.separation : LAYOUT.separation) - attackOffset)) };
+    const direction = opponent ? resolveFacing(actor, opponent, actor.facing === Math.PI ? -1 : 1) : actor.facing === Math.PI ? -1 : 1;
+    const attackOffset = actor.pose === 'attack' ? (config.poses.attack?.lunge || 0) * Math.sin(actor.attackTime / (config.poses.attack?.duration || 500) * Math.PI) * direction : 0;
+    return { ...actor, x:Math.max(margin, Math.min(WIDTH - margin, actor.x + (side === 'player' ? -LAYOUT.separation : LAYOUT.separation) + attackOffset)) };
   }
   // 向きは移動速度や陣営から独立。完全な同座標では直前の向きを保つ。
   function resolveFacing(character, opponent, previous = 1) {
     return opponent.x > character.x ? 1 : opponent.x < character.x ? -1 : previous === -1 ? -1 : 1;
   }
   const facingStates = new WeakMap();
-  const images = {};
-  const sources = Object.entries(SPRITES).flatMap(([side, config]) => [
-    [side, config.src], ...Object.entries(config.poses).map(([pose, clip]) => [side + ':' + pose, clip.src])
-  ]);
-  const ready = Promise.all(sources.map(([key, src]) => new Promise(resolve => {
-    if (typeof Image === 'undefined') { resolve(); return; }
-    const image = new Image();
-    const timer = setTimeout(() => resolve(), 5000);
-    image.onload = () => { clearTimeout(timer); images[key] = image; resolve(); };
-    image.onerror = () => { clearTimeout(timer); resolve(); };
-    image.src = src;
-  })));
+  const ready = Promise.all(Object.entries(SPRITES).flatMap(([side, config]) => {
+    if (!config.src) return [];
+    return [['master', config], ...Object.entries(config.poses)].filter(([,clip]) => clip.src).map(async ([motion, clip]) => {
+      await loadAsset(clip.src);
+      if (!imageFor(clip.src)) warn(ids[side], `${motion}画像を読み込めません: ${clip.src}。${motion === 'master' ? '仮キャラクター' : '自身のマスター画像'}で続行します。`);
+    });
+  }));
   // 画像の元向きとゲーム上の向きを分離する。状態や移動方向は参照しない。
   function spriteOrientation(actor, sourceFacing) {
     const facing = actor.facingDirection ?? (actor.facing === Math.PI ? -1 : 1);
@@ -49,9 +76,9 @@
   function spriteFrame(side, actor, time) {
     const config = SPRITES[side], clip = config.poses[actor.pose] && (actor.moving || config.poses[actor.pose].once) && config.poses[actor.pose];
     const elapsed = clip && actor[clip.timeField || 'attackTime'];
-    const animated = Boolean(clip && images[side + ':' + actor.pose] && (!clip.once || (elapsed >= 0 && elapsed < clip.duration)));
+    const animated = Boolean(imageFor(config.src) && clip && imageFor(clip.src) && (!clip.once || (elapsed >= 0 && elapsed < clip.duration)));
     const index = animated ? clip.once ? Math.min(clip.frames.length - 1, Math.floor(elapsed / (clip.duration / clip.frames.length))) : Math.floor(time * clip.fps / 1000) % clip.frames.length : 0;
-    return { image:animated ? images[side + ':' + actor.pose] : images[side],
+    return { image:animated ? imageFor(clip.src) : imageFor(config.src),
       frame:animated ? clip.frames[index] : config.frame, index, animated, clip:animated ? clip : null,
       ...spriteOrientation(actor, (animated && clip.sourceFacing) || config.sourceFacing || 1) };
   }
@@ -112,7 +139,8 @@
 
   // 16×24ピクセルの仮キャラを1.5倍で描く。足元を基準に奥から描画する。
   function drawActor(ctx, actor, side, time) {
-    if (images[side]) { drawSprite(ctx, actor, side, time); return; }
+    const config = SPRITES[side];
+    if (imageFor(config.src)) { drawSprite(ctx, actor, side, time); return; }
     const fallen = actor.pose === 'fall' || actor.pose === 'defeated';
     const walk = actor.pose === 'walk' ? actor.frame * 2 - 1 : 0;
     const bob = actor.pose === 'idle' ? Math.floor(time / 400) % 2 : 0;
@@ -192,7 +220,7 @@
     let state = facingStates.get(canvas);
     if (!state || scene.time < state.time) { state = { time:scene.time, directions:{} }; facingStates.set(canvas,state); }
     state.time = scene.time;
-    const actors = { player:projectActor(scene.player,'player'), cpu:projectActor(scene.cpu,'cpu') };
+    const actors = { player:projectActor(scene.player,'player',scene.cpu), cpu:projectActor(scene.cpu,'cpu',scene.player) };
     for (const side of ['cpu', 'player']) {
       const actor = actors[side], opponent = actors[side === 'player' ? 'cpu' : 'player'];
       actor.facingDirection = resolveFacing(actor,opponent,state.directions[side]);
@@ -205,13 +233,19 @@
     }
     for (const side of ['cpu', 'player'].sort((a, b) => scene[a].y - scene[b].y)) {
       const actor = actors[side];
-      const a = projectActor(sampleScene(Math.max(0, scene.time - 5), scene.winner)[side], side);
-      const b = projectActor(sampleScene(Math.min(DURATION, scene.time + 5), scene.winner)[side], side);
-      // 力士の構えへの戻りも、移動している間は歩行画像を使う。軌道は変更しない。
-      if (side === 'cpu' && actor.pose === 'idle' && Math.abs(b.x - a.x) > .001) actor.pose = 'walk';
+      const previous = sampleScene(Math.max(0, scene.time - 5), scene.winner);
+      const next = sampleScene(Math.min(DURATION, scene.time + 5), scene.winner);
+      const other = side === 'player' ? 'cpu' : 'player';
+      const a = projectActor(previous[side], side, previous[other]);
+      const b = projectActor(next[side], side, next[other]);
+      // 登録設定に従い、構えへ戻る移動にも歩行画像を使う。軌道は変更しない。
+      if (SPRITES[side].recoveryWalk && actor.pose === 'idle' && Math.abs(b.x - a.x) > .001) actor.pose = 'walk';
       actor.moving = actor.pose === 'walk' && Math.abs(b.x - a.x) > .001;
       actor.direction = Math.sign(b.x - a.x);
       const selected = spriteFrame(side, actor, scene.time);
+      canvas.dataset[side + 'CharacterId'] = ids[side] || '';
+      canvas.dataset[side + 'Image'] = selected.image ? selected.image.src : '';
+      canvas.dataset[side + 'Fallback'] = String(!imageFor(SPRITES[side].src));
       canvas.dataset[side + 'Frame'] = String(selected.index);
       canvas.dataset[side + 'Walking'] = String(selected.animated && actor.pose === 'walk');
       canvas.dataset[side + 'Attacking'] = String(selected.animated && actor.pose === 'attack');
@@ -284,5 +318,7 @@
     return control;
   }
 
-  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, LAYOUT, projectActor, resolveFacing, spriteOrientation, spriteFrame, ready, sampleScene, drawScene, play };
+  return { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, LAYOUT, projectActor, resolveFacing, spriteOrientation, spriteFrame, ready, sampleScene, drawScene, play };
+  }
+  window.HumanityPixelBattle = { ...createRenderer(), createRenderer };
 })();
