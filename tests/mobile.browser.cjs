@@ -4,7 +4,7 @@ const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 const tags=[...html.matchAll(/<script src="([^"]+)" defer><\/script>/g)];
-assert.equal(tags.length,4);
+assert.equal(tags.length,5);
 const versions=tags.map(([,src])=>new URL(src,'https://test.invalid/').searchParams.get('v'));
 assert.ok(versions.every(Boolean));assert.equal(new Set(versions).size,1);
 const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<script>'+fs.readFileSync(path.join(root,src.split('?')[0]),'utf8')+'</script>');
@@ -19,7 +19,9 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
       // 最長名を確実に配り、実際の計算式に境界乱数を注入して進行を決定的に検証。
       await page.evaluate(()=>{
         const deal=window.HumanityMatch.deal,resolve=window.HumanityBattle.resolveRound;
-        window.__outcomes=['player','cpu','player'];window.__roundDraws=0;window.__firstSide='cpu';
+        window.__outcomes=['player','cpu','player'];window.__roundDraws=0;window.__firstSide='cpu';window.__storyCount=0;
+        const generate=window.HumanityStory.generateStory;
+        window.HumanityStory.generateStory=result=>{window.__storyCount++;return generate(result);};
         window.HumanityMatch.deal=characters=>{
           const ranked=[...characters].sort((a,b)=>b.name.length-a.name.length);
           return window.__match=deal(ranked,()=>window.__firstSide==='player'?0:0.999999);
@@ -89,16 +91,16 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
         assert.equal(await page.locator('#round-result').isVisible(),true);assert.equal(await page.locator('#result-stats tr').count(),6);
         assert.equal(await page.locator('#hand .used').count(),round);assert.equal(await page.locator('#cpu-hand .used').count(),round);
         assert.equal(await page.locator('#hand .card:disabled').count(),3);
-        assert.equal(await page.evaluate(()=>window.__roundDraws),round);
+        assert.equal(await page.evaluate(()=>window.__roundDraws),round);assert.equal(await page.evaluate(()=>window.__storyCount),round);
         const expected=await page.evaluate(()=>{
           const result=window.__match.rounds.at(-1),d=result.decision;
-          return {cpu:result.cpuCard.name,reason:window.HumanityBattle.describeResult(d),probability:`対戦前の勝率：あなた ${d.playerWinPercent}% ／ CPU ${100-d.playerWinPercent}%`,
-            rows:window.HumanityBattle.STATS.map(s=>[window.HumanityBattle.STAT_LABELS[s],String(d.playerStats[s]),String(d.cpuStats[s])]),headline:window.HumanityBattle.createCommentary(d).headline};
+          return {cpu:result.cpuCard.name,reason:result.story.body,probability:`対戦前の勝率：あなた ${d.playerWinPercent}% ／ CPU ${100-d.playerWinPercent}%`,
+            rows:window.HumanityBattle.STATS.map(s=>[window.HumanityBattle.STAT_LABELS[s],String(d.playerStats[s]),String(d.cpuStats[s])]),headline:result.story.headline};
         });
         assert.equal(await page.locator('#cpu-fighter .card-name').textContent(),expected.cpu);
         assert.equal(await page.locator('#result-reason').textContent(),expected.reason);
         assert.equal(await page.locator('#result-headline').textContent(),expected.headline);
-        assert.ok(expected.reason.length>=100&&expected.reason.length<=150);
+        assert.ok(expected.reason.length>=150&&expected.reason.length<=250);
         assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/PLAYER|STR|SPD|END|STK|GRP|SUB|抽選値|判定境界|戦闘力|計算式/);
         assert.equal(await page.locator('#round-result thead th').count(),3);
         assert.equal(await page.locator('#result-probability').textContent(),expected.probability);
@@ -110,10 +112,10 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
           return result===window.__match.rounds.at(-1)&&node===document.querySelector('#cpu-fighter').firstElementChild;
         });assert.equal(stable,true);
         await page.locator('#cpu-fighter .fighter-card').evaluate(el=>Promise.all(el.getAnimations().map(a=>a.finished)));
-        assert.equal(await page.evaluate(()=>window.__roundDraws),round);
+        assert.equal(await page.evaluate(()=>window.__roundDraws),round);assert.equal(await page.evaluate(()=>window.__storyCount),round);
         assert.equal(await page.locator('#result-reason').textContent(),expected.reason);
         assert.equal(await page.locator('#result-headline').textContent(),expected.headline);
-        assert.ok(expected.reason.length>=100&&expected.reason.length<=150);
+        assert.ok(expected.reason.length>=150&&expected.reason.length<=250);
         assert.doesNotMatch(await page.locator('#hand-screen').innerText(),/PLAYER|STR|SPD|END|STK|GRP|SUB|抽選値|判定境界|戦闘力|計算式/);
         assert.equal(await page.locator('#round-result thead th').count(),3);
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
@@ -127,7 +129,7 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
       }
       assert.match(await page.locator('#match-score').textContent(),/試合終了.*あなた 2勝.*CPU 1勝/);
       assert.equal(await page.locator('#return-button').isVisible(),false);
-      await page.evaluate(()=>{window.__outcomes=['cpu','cpu'];window.__roundDraws=0;window.__firstSide='player';});
+      await page.evaluate(()=>{window.__outcomes=['cpu','cpu'];window.__roundDraws=0;window.__firstSide='player';window.__storyCount=0;});
       await page.getByRole('button',{name:'新しい試合',exact:true}).click();
       assert.equal(await page.locator('#hand .used').count(),0);
       for(let round=1;round<=2;round++){
@@ -141,7 +143,7 @@ const content=html.replace(/<script src="([^"]+)" defer><\/script>/g,(_,src)=>'<
       assert.equal(await page.locator('#return-button').isVisible(),false);
       assert.equal(await page.locator('#fight-button').isDisabled(),true);
       assert.deepEqual(errors,[]);
-      console.log(`PASS ${width}px: 先攻/後攻・順序どおりの公開・公開手札3枚・縦配置・事前能力非表示・結果6能力/勝率/理由・抽選1回・再使用禁止・3戦決着/2連勝終了`);
+      console.log(`PASS ${width}px: 先攻/後攻・順序どおりの公開・公開手札3枚・縦配置・事前能力非表示・結果6能力/勝率/保存ストーリー・抽選1回・再使用禁止・3戦決着/2連勝終了`);
       await context.close();
     }
   }finally{await browser.close();}

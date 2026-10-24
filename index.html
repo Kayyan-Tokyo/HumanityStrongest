@@ -117,7 +117,8 @@
     .round-result table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.85rem; }
     .round-result caption { font-size: 0.8rem; margin-bottom: 8px; color: #d8d4e4; }
     .round-result th, .round-result td { padding: 8px 2px; border-bottom: 1px solid #625575; overflow-wrap: anywhere; }
-    .result-reason { font-size: 1rem; line-height: 1.9; overflow-wrap: anywhere; text-align: left; margin: 12px 0 0; }
+    .story-note { font-size: 0.8rem; line-height: 1.7; color: #d8d4e4; }
+    .result-reason { white-space: pre-line; font-size: 1rem; line-height: 1.9; overflow-wrap: anywhere; text-align: left; margin: 12px 0 0; }
     .turn-status { margin: 0 0 16px; padding: 12px; border: 1px solid #ffbf60; border-radius: 8px; color: #ffcf89; line-height: 1.7; font-weight: 700; }
     .match-score { margin: 0 0 16px; color: #ffcf89; font-weight: 700; line-height: 1.6; }
     .card.used { opacity: 0.5; border-style: dashed; }
@@ -250,6 +251,7 @@
             <tbody id="result-stats"></tbody>
           </table>
           <h4 id="result-headline" class="result-headline"></h4>
+          <p class="story-note">能力と勝敗からふくらませた物語です。</p>
           <p id="result-reason" class="result-reason"></p>
         </section>
       </section>
@@ -263,9 +265,10 @@
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=turn-order-1" defer></script>
-  <script src="./js/battle.js?v=turn-order-1" defer></script>
-  <script src="./js/match.js?v=turn-order-1" defer></script>
-  <script src="./js/game.js?v=turn-order-1" defer></script>
+  <script src="./js/characters.js?v=saved-stories-1" defer></script>
+  <script src="./js/battle.js?v=saved-stories-1" defer></script>
+  <script src="./js/story.js?v=saved-stories-1" defer></script>
+  <script src="./js/match.js?v=saved-stories-1" defer></script>
+  <script src="./js/game.js?v=saved-stories-1" defer></script>
 </body>
 </html>

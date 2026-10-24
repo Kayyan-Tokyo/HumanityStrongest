@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const context=vm.createContext({window:{}});
-for(const file of ['js/characters.js','js/battle.js','js/match.js']) vm.runInContext(fs.readFileSync(file,'utf8'),context);
+for(const file of ['js/characters.js','js/battle.js','js/story.js','js/match.js']) vm.runInContext(fs.readFileSync(file,'utf8'),context);
 const {deal,playRound,nextRound,availableCards,commitPlayerCard}=context.window.HumanityMatch;
 const data=context.window.CHARACTERS;
 function runRound(match,id,resolver){
