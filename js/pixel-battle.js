@@ -6,7 +6,7 @@
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
     player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, referenceHeight:144, anchors:[[80.5,142],[87,142],[81.5,145],[85.5,144]], frames:[[31,34,153,142],[202,35,160,142],[414,14,150,145],[593,16,160,144]] } } },
-    cpu: { src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{} }
+    cpu: { src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{ walk:{ src:'./assets/characters/sumo_walk_4f.png', fps:6, anchor:[160,316], referenceHeight:300, frames:[[0,0,320,336],[320,0,320,336],[640,0,320,336],[960,0,320,336]] }, attack:{ src:'./assets/characters/sumo_slap_4f.png', once:true, duration:500, anchor:[256,476], referenceHeight:458, frames:[[0,0,704,496],[704,0,704,496],[1408,0,704,496],[2112,0,704,496]] } } }
   };
   // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
   const LAYOUT = { spriteScale:1.35, separation:18, edgePadding:8 };
@@ -14,7 +14,8 @@
     const config = SPRITES[side];
     const halfWidth = config.height * LAYOUT.spriteScale * config.frame[2] / config.frame[3] / 2;
     const margin = halfWidth + LAYOUT.edgePadding;
-    return { ...actor, x:Math.max(margin, Math.min(WIDTH - margin, actor.x + (side === 'player' ? -LAYOUT.separation : LAYOUT.separation))) };
+    const attackOffset = side === 'cpu' && actor.pose === 'attack' ? 8 * Math.sin(actor.attackTime / 500 * Math.PI) : 0;
+    return { ...actor, x:Math.max(margin, Math.min(WIDTH - margin, actor.x + (side === 'player' ? -LAYOUT.separation : LAYOUT.separation) - attackOffset)) };
   }
   const images = {};
   const sources = Object.entries(SPRITES).flatMap(([side, config]) => [
@@ -67,6 +68,11 @@
         actors.player.attackTime = progress * 1000 - 200;
         actors.player.pose = progress >= .2 && progress < .7 ? 'attack' : 'idle';
         actors.cpu.pose = progress >= .45 && progress < .7 ? 'damage' : 'idle';
+        hit = progress >= .45 && progress < .575 ? Math.sin((progress - .45) / .125 * Math.PI) : 0;
+      } else {
+        actors.cpu.attackTime = progress * 1000 - 200;
+        actors.cpu.pose = progress >= .2 && progress < .7 ? 'attack' : 'idle';
+        actors.player.pose = progress >= .45 && progress < .7 ? 'damage' : 'idle';
         hit = progress >= .45 && progress < .575 ? Math.sin((progress - .45) / .125 * Math.PI) : 0;
       }
 
@@ -169,17 +175,21 @@
       const actor = projectActor(scene[side], side);
       const a = projectActor(sampleScene(Math.max(0, scene.time - 5), scene.winner)[side], side);
       const b = projectActor(sampleScene(Math.min(DURATION, scene.time + 5), scene.winner)[side], side);
+      // 力士の構えへの戻りも、移動している間は歩行画像を使う。軌道は変更しない。
+      if (side === 'cpu' && actor.pose === 'idle' && Math.abs(b.x - a.x) > .001) actor.pose = 'walk';
       actor.moving = actor.pose === 'walk' && Math.abs(b.x - a.x) > .001;
       actor.direction = Math.sign(b.x - a.x);
       const selected = spriteFrame(side, actor, scene.time);
       canvas.dataset[side + 'Frame'] = String(selected.index);
       canvas.dataset[side + 'Walking'] = String(selected.animated && actor.pose === 'walk');
       canvas.dataset[side + 'Attacking'] = String(selected.animated && actor.pose === 'attack');
+      canvas.dataset[side + 'Flipped'] = String(selected.flip);
       drawActor(ctx, actor, side, scene.time);
     }
     if (scene.hit > 0) {
       const thrust = scene.player.pose === 'attack' && images['player:attack'];
-      const x = thrust ? projectActor(scene.player,'player').x + 94 : (scene.player.x + scene.cpu.x) / 2, y = GROUND_Y - (thrust ? 48 : 30);
+      const slap = scene.cpu.pose === 'attack' && images['cpu:attack'];
+      const x = thrust ? projectActor(scene.player,'player').x + 94 : slap ? projectActor(scene.cpu,'cpu').x - 61 : (scene.player.x + scene.cpu.x) / 2, y = GROUND_Y - (thrust ? 48 : slap ? 47 : 30);
       ctx.globalAlpha = scene.hit; ctx.fillStyle = '#ffe8a1';
       ctx.fillRect(x - 6, y - 1, 12, 2); ctx.fillRect(x - 1, y - 6, 2, 12);
       ctx.globalAlpha = 1;
