@@ -10,6 +10,20 @@ const context = vm.createContext({ window: {}, Math: math, performance: { now: (
 });
 vm.runInContext(fs.readFileSync('js/pixel-battle.js', 'utf8'), context);
 const api = context.window.HumanityPixelBattle;
+const walking = { pose:'walk', moving:true, direction:1 };
+assert.deepEqual([0,150,300,450,600].map(t => api.spriteFrame('player', walking, t).index), [0,1,2,3,0]);
+assert.equal(api.spriteFrame('player', { ...walking, moving:false }, 450).animated, false);
+assert.equal(api.spriteFrame('player', { ...walking, pose:'idle' }, 450).animated, false);
+assert.equal(api.spriteFrame('player', { ...walking, direction:-1 }, 450).flip, true);
+assert.equal(api.spriteFrame('player', walking, 450).flip, false);
+assert.equal(api.spriteFrame('cpu', walking, 450).animated, false);
+for (let t=0;t<3000;t+=10) {
+  const actor=api.projectActor(api.sampleScene(t,'player').player,'player');
+  for(const frame of api.SPRITES.player.poses.walk.frames) {
+    const height=api.SPRITES.player.height*api.LAYOUT.spriteScale, width=height*frame[2]/frame[3];
+    assert.ok(actor.x-width/2>=0 && actor.x+width/2<=api.WIDTH && actor.y-height>=0);
+  }
+}
 for (const winner of ['player', 'cpu']) {
   const poses = { player: new Set(), cpu: new Set() }, phases = new Set();
   for (let t = 0; t <= 10000; t += 10) {
@@ -93,8 +107,8 @@ const step = time => { now = time; const calls = [...frames.values()]; frames.cl
   assert.equal(frames.size + timers.size, 0);
   assert.ok(draws.length > 0);
   for (const [image, sx, sy, sw, sh, dx, dy, dw, dh] of draws) {
-    assert.match(image.source, /assets\/characters\/(spartan_idle|sumo_idle)\.png/);
-    assert.ok(sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= 192 && sy + sh <= 192);
+    assert.match(image.source, /assets\/characters\/(spartan_idle|sumo_idle|spartan_walk_4f)\.png/);
+    assert.ok(sw > 0 && sh > 0 && sx >= 0 && sy >= 0 && sx + sw <= (image.source.includes("walk_4f") ? 768 : 192) && sy + sh <= 192);
     assert.equal(dy, -dh); assert.equal(dx, -dw / 2); // 下端中央を足元に固定
     assert.ok(Math.abs(dw / dh - sw / sh) < 1e-10); // 元の縦横比
   }
