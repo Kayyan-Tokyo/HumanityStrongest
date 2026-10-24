@@ -25,9 +25,12 @@ for(const playerCard of characters)for(const cpuCard of characters){
     assert.ok(story.body.includes(playerCard.name));assert.ok(story.body.includes(cpuCard.name));
     assert.deepEqual(Array.from(story.body.split('\n\n')),[story.opening,story.middle,story.ending]);
     assert.doesNotMatch(story.body,/序盤：|中盤：|終盤：|互いの持ち味|勝機を探る/);
-    const winnerName=decision.winner==='player'?playerCard.name:cpuCard.name;
-    const loserName=decision.winner==='player'?cpuCard.name:playerCard.name;
-    assert.ok(story.ending.includes(`「${winnerName}」`));assert.ok(!story.ending.includes(`「${loserName}」`));
+    assert.ok(story.ending.startsWith(story.winnerAlias));
+    assert.equal(typeof story.winnerAlias,'string');assert.equal(typeof story.loserAlias,'string');
+    assert.notEqual(story.winnerAlias,story.loserAlias);
+    for(const sentence of story.body.split(/[。！]/).filter(Boolean))assert.ok(sentence.trim().length<=70, sentence);
+    assert.ok(story.middle.includes(story.loserAlias));
+    assert.doesNotMatch(story.body,/相手|両者|彼|\{w\}|\{l\}/);
     const winnerCard=decision.winner==='player'?playerCard:cpuCard;
     const winnerProfile=context.window.COMBAT_STYLES[winnerCard.id];
     assert.ok(winnerProfile.finishes.some(finish=>finish.label===story.finish));
@@ -35,6 +38,22 @@ for(const playerCard of characters)for(const cpuCard of characters){
     for(const word of ['KO','関節技','絞め技','タックル','大外刈り','スイープ','フック','膝蹴り','足掛け','押し倒','組み倒','投げ']){
       if(story.finish.includes(word))assert.ok(story.body.includes(word),`${story.finish}: ${story.body}`);
     }
+    const decisiveText=story.middle+story.ending;
+    if(/^打撃から/.test(story.finish)){
+      assert.match(story.middle,/打撃|パンチ/);
+      assert.match(story.middle,/当たり|揺らし|ひるませ/);
+      assert.match(story.ending,/組み付|押し倒|組み倒/);
+      assert.ok(decisiveText.search(/打撃|パンチ/)<decisiveText.search(/組み付|押し倒|組み倒/));
+      assert.ok(story.middle.includes(story.winnerAlias+'の'));
+    }
+    if(story.finish==='打撃からの制圧'){
+      assert.ok(story.ending.startsWith(story.winnerAlias+'はその隙に'));
+      assert.match(story.ending,/組み付き、地面へ押し倒して動きを封じ/);
+    }
+    if(story.finish==='膝蹴りによるKO')assert.match(story.ending,/膝蹴り.*命中.*KO/);
+    // 短縮名を使う中盤の各文で、行動主体を直前の勝者または明示した敗者に保つ。
+    assert.ok(story.middle.startsWith(story.winnerAlias+'は'));
+    assert.match(story.middle.split(/[。！]/).filter(Boolean).at(-1),new RegExp('^'+story.loserAlias+'は'));
     assert.equal(story.body.includes('KO'),story.finish.includes('KO'));
     assert.equal(story.body.includes('降参'),/関節技|絞め技/.test(story.finish));
     for(const skill of [story.playerSkill,story.cpuSkill]){assert.ok(b.STATS.includes(skill));skills.add(skill);}
@@ -59,9 +78,10 @@ for(const variations of byPair.values())assert.ok(variations.size>1);
 for(const card of characters)for(const finish of profiles[card.id].finishes)assert.ok(finishCoverage.has(`${card.id}|${finish.label}`));
 // 重点対戦は、勝者が逆転すると距離・組み・蹴り・抵抗からの決着も変わる。
 const focus=[
- ['heavyweight-boxer','heavyweight-judoka',/体を離す[\s\S]*ジャブ[\s\S]*フック/,/ストレート[\s\S]*腕の内側[\s\S]*大外刈り/],
+ ['ww2-us-soldier','gladiator',/米兵のパンチ.*剣闘士[\s\S]*米兵はその隙に剣闘士へ組み付/,/剣闘士のパンチ.*米兵[\s\S]*剣闘士はその隙に大戦期の米兵へ組み付/],
+ ['heavyweight-boxer','heavyweight-judoka',/体を離[\s\S]*ジャブ[\s\S]*フック/,/ジャブ[\s\S]*腕の内側[\s\S]*大外刈り/],
  ['muay-thai','mma-fighter',/タックル[\s\S]*上体[\s\S]*膝蹴り/,/ローキック[\s\S]*(打撃|タックル)[\s\S]*(KO|関節技)/],
- ['oil-wrestler','spartan',/打撃[\s\S]*胴[\s\S]*足掛け/,/足を掛けよう[\s\S]*重心[\s\S]*投げ/],
+ ['oil-wrestler','spartan',/打撃[\s\S]*胴[\s\S]*足掛け/,/胴に腕[\s\S]*体を前[\s\S]*投げ/],
  ['us-office-worker','heavyweight-boxer',/ジャブ[\s\S]*肩を低く[\s\S]*体当たり/,/ぎこちなく[\s\S]*ストレート[\s\S]*フック/]
 ];
 for(const [a,c,playerPattern,cpuPattern]of focus){
@@ -70,8 +90,28 @@ for(const [a,c,playerPattern,cpuPattern]of focus){
   const decision=b.resolveRound(playerCard,cpuCard,()=>roll);
   const story=s.generateStory({playerCard,cpuCard,decision,winner:decision.winner,firstSide:'player',round:1});
   assert.match(story.body,pattern);
+  const knownAliases={'ww2-us-soldier':'大戦期の米兵',gladiator:'剣闘士','heavyweight-boxer':'ボクサー','heavyweight-judoka':'柔道家','muay-thai':'ムエタイ選手','mma-fighter':'総合格闘家','oil-wrestler':'オイルレスラー',spartan:'スパルタ兵','us-office-worker':'社会人'};
+  assert.equal(story.winnerAlias,knownAliases[decision.winner==='player'?a:c]);
+  assert.equal(story.loserAlias,knownAliases[decision.winner==='player'?c:a]);
  }
 }
+function matchTrace(enabled,seed){
+ let state=seed,calls=0;
+ const random=()=>{calls++;state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+ const original=s.generateStory;
+ if(!enabled)s.generateStory=()=>Object.freeze({body:''});
+ try{
+  const match=m.deal(characters,random);
+  while(match.phase!=='finished'){
+   const card=m.availableCards(match.playerHand,match.usedPlayerIds)[0];
+   if(match.firstSide==='player')m.commitPlayerCard(match,card.id,random);
+   m.playRound(match,card.id,(p,c)=>b.resolveRound(p,c,random));
+   if(match.phase==='round-ended')m.nextRound(match,random);
+  }
+  return JSON.stringify({calls,winner:match.winner,rounds:match.rounds.map(r=>({player:r.playerCard.id,cpu:r.cpuCard.id,decision:r.decision,firstSide:r.firstSide}))});
+ }finally{s.generateStory=original;}
+}
+for(let seed=1;seed<=100;seed++)assert.equal(matchTrace(true,seed),matchTrace(false,seed));
 let generated=0;
 const original=s.generateStory;
 s.generateStory=result=>{generated++;return original(result);};
@@ -86,4 +126,4 @@ assert.equal(match.rounds[0].story,saved);assert.equal(generated,1);
 const body=saved.body;
 match.rounds[0].playerCard.name='変更テスト';
 assert.equal(saved.body,body);
-console.log(`PASS: ${count}件の物語は${min}〜${max}文字・両者名・見出しなし3段落・固有技/決まり手・4展開・勝者整合・生成1回/保存・追加抽選なし`);
+console.log(`PASS: ${count}件の物語は${min}〜${max}文字・両者名・見出しなし3段落・固有技/決まり手・4展開・勝者整合・生成1回/保存・100試合の乱数列/勝敗一致`);

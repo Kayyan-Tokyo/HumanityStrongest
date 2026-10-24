@@ -1,98 +1,295 @@
 (() => {
   'use strict';
-  // 演出専用の動作表現。既存のスタイル・技の範囲内で、攻撃と追撃を対にする。
+  // 演出専用の動作表現。既存のスタイル・技の範囲内で、攻撃の入り方を描く。
   // 攻撃はまだ決着していない動作に限定し、勝者の反撃へつなげる。
   const ATTACKS = {
-    neanderthal: ['rush', '肩から勢いよく突っ込んだ', '両腕を伸ばし、胴を抱え込もうと迫る'],
-    'paleolithic-hunter': ['distance', '左右に動き、隙を見つけて打撃を放った', '踏み込みながらもう一撃を狙う'],
-    spartan: ['clinch', '打撃を放ちながら懐へ踏み込んだ', '腕を伸ばして組み付き、押し込もうとする'],
-    gladiator: ['distance', '間合いを変え、鋭い打撃を放った', '打撃の後を追い、胴へ腕を伸ばす'],
-    samurai: ['clinch', '体を横へさばき、相手の腕をつかんだ', '足を踏み替え、重心を崩そうと引く'],
-    'medieval-knight': ['clinch', '肩をぶつけるように力強く組み付いた', '肩を寄せ、体勢を崩そうと押し込む'],
-    'mongol-cavalry': ['distance', '素早く踏み込み、一撃を放って身を引いた', '横へ回り、間合いを変えて打撃を狙う'],
-    'edo-farmer': ['rush', '足を踏ん張り、体当たりを仕掛けた', '押し戻されても足を止めず、体を寄せる'],
-    viking: ['distance', '大きく腕を振り、豪快な打撃を放った', '打撃に続けて腕を伸ばし、組み付こうとする'],
-    'meiji-sumo': ['clinch', '突っ張りを続け、前へ押し出した', '四つに組もうと腕を差し入れる'],
-    'ww2-japanese-soldier': ['clinch', '打撃を交え、組み付ける距離へ踏み込んだ', '腕をつかみ、体勢を崩そうとする'],
-    'ww2-us-soldier': ['clinch', '打撃を放ちながら前へ押し込んだ', '胴に腕を回し、さらに体を寄せる'],
-    'us-office-worker': ['wild', 'ぎこちなく拳を振り、必死に前へ出た', '空振りしても踏みとどまり、体当たりを狙う'],
-    sumo: ['clinch', '突っ張りで押し込み、四つに組もうと迫った', '腕を差し入れ、足を進めて寄ろうとする'],
-    'heavyweight-boxer': ['distance', 'ジャブを伸ばし、距離を保った', 'ジャブの後にストレートを伸ばす'],
-    'heavyweight-judoka': ['clinch', '腕をつかみ、大外刈りで崩そうとした', '足を踏み替え、内股で投げようと引き寄せる'],
-    'mma-fighter': ['shot', 'パンチでけん制し、低くタックルを仕掛けた', '踏み込み直して両脚へ腕を伸ばす'],
-    'bjj-fighter': ['ground', '腕を取り、寝技へ引き込もうとした', '腕をつかみ直し、引き込もうと腰を落とす'],
-    'japanese-delinquent': ['clinch', '大振りのパンチから服をつかんで引いた', 'つかんだ服を離さず、前へ押し込む'],
-    'nakameguro-barber': ['wild', '大きく腕を振って打撃を仕掛けた', '体を寄せ、必死に組み付こうと腕を伸ばす'],
-    'modern-us-soldier': ['clinch', '打撃を交え、相手の腕をつかんだ', '重心を崩そうと足を進め、体を寄せる'],
-    hacker: ['wild', '後ずさりしながら、とっさにパンチを出した', '距離を取ろうと下がりつつ、必死に拳を伸ばす'],
-    'american-rapper': ['wild', 'とっさのパンチを放って前へ出た', '拳が届かないと近づき、両手で押そうとする'],
-    'chinese-man': ['wild', '顔を守りながら、不器用な反撃を繰り出した', '腕を下げず、体当たりで押し返そうとする'],
-    'muay-thai': ['kick', '鋭いローキックで前足を狙った', '間合いを詰め、ミドルキックを蹴り込む'],
-    'oil-wrestler': ['clinch', '胴に腕を回し、力強く組み付いた', '足を掛けようと踏み込み、体を揺さぶる'],
-    'rugby-player': ['shot', '低い姿勢から突進し、タックルを仕掛けた', '足を止めず、肩を押し付けて前へ進む'],
-    'japanese-office-worker': ['clinch', '顔を守りながら、必死に相手の腕をつかんだ', 'つかんだ腕を離さず、とっさに押し返す'],
-    bodybuilder: ['clinch', '太い腕を伸ばし、力強く胴に組み付いた', '腕に力を込め、体ごと押し込もうとする'],
-    'female-mma-fighter': ['shot', '素早い打撃からタックルへ飛び込んだ', '姿勢を低くし直し、腕を伸ばして押し込む']
+    neanderthal: ['rush', '肩から勢いよく突っ込んだ'],
+    'paleolithic-hunter': ['distance', '左右に動き、隙を見つけて打撃を放った'],
+    spartan: ['clinch', '打撃から懐へ踏み込み、胴に組み付いた'],
+    gladiator: ['distance', '間合いを変え、鋭い打撃を放った'],
+    samurai: ['clinch', '体を横へさばき、相手の腕をつかんだ'],
+    'medieval-knight': ['clinch', '肩をぶつけるように力強く組み付いた'],
+    'mongol-cavalry': ['distance', '素早く踏み込み、一撃を放って身を引いた'],
+    'edo-farmer': ['rush', '足を踏ん張り、体当たりを仕掛けた'],
+    viking: ['distance', '大きく腕を振り、豪快な打撃を放った'],
+    'meiji-sumo': ['clinch', '突っ張りを続け、前へ押し出した'],
+    'ww2-japanese-soldier': ['clinch', '打撃を交えて近づき、腕をつかんだ'],
+    'ww2-us-soldier': ['clinch', '打撃を放ちながら前へ押し込んだ'],
+    'us-office-worker': ['wild', 'ぎこちなく拳を振り、必死に前へ出た'],
+    sumo: ['clinch', '突っ張りで押し込み、四つに組もうと迫った'],
+    'heavyweight-boxer': ['distance', 'ジャブを伸ばし、距離を保った'],
+    'heavyweight-judoka': ['clinch', '腕をつかみ、大外刈りで崩そうとした'],
+    'mma-fighter': ['shot', 'パンチでけん制し、低くタックルを仕掛けた'],
+    'bjj-fighter': ['ground', '腕を取り、寝技へ引き込もうとした'],
+    'japanese-delinquent': ['clinch', '大振りのパンチから服をつかんで引いた'],
+    'nakameguro-barber': ['wild', '大きく腕を振って打撃を仕掛けた'],
+    'modern-us-soldier': ['clinch', '打撃を交え、相手の腕をつかんだ'],
+    hacker: ['wild', '後ずさりしながら、とっさにパンチを出した'],
+    'american-rapper': ['wild', 'とっさのパンチを放って前へ出た'],
+    'chinese-man': ['wild', '顔を守りながら、不器用な反撃を繰り出した'],
+    'muay-thai': ['kick', '鋭いローキックで前足を狙った'],
+    'oil-wrestler': ['clinch', '胴に腕を回し、力強く組み付いた'],
+    'rugby-player': ['shot', '低い姿勢から突進し、タックルを仕掛けた'],
+    'japanese-office-worker': ['clinch', '顔を守りながら、必死に相手の腕をつかんだ'],
+    bodybuilder: ['clinch', '太い腕を伸ばし、力強く胴に組み付いた'],
+    'female-mma-fighter': ['shot', '素早い打撃からタックルへ飛び込んだ']
   };
 
-  // 決まり手ごとに、反撃で作る体勢→相手の抵抗→空いた箇所を固定する。
-  // 技名のランダムな連結で立ち位置が飛ばないよう、一つの流れとして選ぶ。
+  // 最初だけ正式名称を使い、以降は人物を取り違えない固有の短縮名を使う。
+  const ALIASES = {
+    "neanderthal": "ネアンデルタール",
+    "paleolithic-hunter": "狩人",
+    "spartan": "スパルタ兵",
+    "gladiator": "剣闘士",
+    "samurai": "武士",
+    "medieval-knight": "騎士",
+    "mongol-cavalry": "騎兵",
+    "edo-farmer": "農民",
+    "viking": "ヴァイキング",
+    "meiji-sumo": "明治の力士",
+    "ww2-japanese-soldier": "日本兵",
+    "ww2-us-soldier": "大戦期の米兵",
+    "us-office-worker": "社会人",
+    "sumo": "大相撲の力士",
+    "heavyweight-boxer": "ボクサー",
+    "heavyweight-judoka": "柔道家",
+    "mma-fighter": "総合格闘家",
+    "bjj-fighter": "柔術選手",
+    "japanese-delinquent": "ヤンキー",
+    "nakameguro-barber": "バーバー",
+    "modern-us-soldier": "現代の米兵",
+    "hacker": "ハッカー",
+    "american-rapper": "ラッパー",
+    "chinese-man": "一般男性",
+    "muay-thai": "ムエタイ選手",
+    "oil-wrestler": "オイルレスラー",
+    "rugby-player": "ラグビー選手",
+    "japanese-office-worker": "会社員",
+    "bodybuilder": "ボディビルダー",
+    "female-mma-fighter": "女性MMA選手"
+  };
+
+  // 決まり手を先に選び、命中→反応→最後の動作を一つの筋として生成する。
+  // {w}/{l}は必ず確定済みの勝者/敗者へ置換し、動作の主体を固定する。
   const FINISHES = {
-    '組み付きからの押し倒し': ['clinch', '両腕で胴を抱え、ぐっと体を寄せた', '相手が足を踏ん張るほど、上体が後ろへ反る', 'その傾きを逃さず、全身で押し倒した', '突進からの押し倒し！'],
-    '打撃からの押し倒し': ['strike', '打撃を返し、相手をのけぞらせた', '相手は腕を上げて守り、足元が緩む', '空いた胴へ飛び込み、そのまま押し倒した', '一撃で開いた勝利への道！'],
-    '投げからの押さえ込み': ['clinch', '打撃で腕を上げさせ、懐でがっちり組み付いた', '相手が押し返した力で、重心が前へ移る', 'その勢いを使って投げ、上から押さえ込んだ', '組み付いて一気に投げる！'],
-    '打撃からの制圧': ['strike', '打撃を返し、ひるんだ相手の胴へ組み付いた', '相手は体を起こそうとするが、足がそろう', 'その足元を崩して組み伏せ、動きを封じた', '打撃から一気に制圧！'],
-    '崩しからの投げ': ['clinch', '体をさばいて腕を取り、斜めに引き寄せた', '相手は踏ん張り直そうと片足を浮かせる', '浮いた瞬間に重心を崩し、投げて押さえ込んだ', '体さばきから鮮やかな投げ！'],
-    '組み倒し': ['clinch', '肩を寄せて組み付き、上体を横へ押した', '相手が押し返すと、踏ん張る足がそろう', 'その一瞬に体をひねり、組み倒した', '肩を寄せて豪快な組み倒し！'],
-    '素早い反撃': ['evade', '足を細かく動かし、相手の正面を外した', '相手は向き直りながら、拳を伸ばして追う', '伸びた腕の外へ回り、素早い反撃を決めた', '足運びから鋭い反撃！'],
-    '体当たりからの押し倒し': ['rush', '足を広げて踏みとどまり、肩を低く構えた', '相手は押し切ろうと前へ体重をかける', '踏み出したところへ体当たりを合わせ、押し倒した', '踏ん張りから体当たり！'],
-    '強打からの組み倒し': ['strike', '強打を返し、腕で守る相手の胴を抱えた', '相手は必死に腰を引くが、片足が浮く', '足が戻る前に体を寄せ、豪快に組み倒した', '強打から豪快な組み倒し！'],
-    '四つ組みからの投げ': ['clinch', '腕を差し入れて四つに組み、腰をぴたりと寄せた', '相手が押し返すと、片足に体重が乗る', '重さが移った瞬間に腰を回し、投げを決めた', '腰を寄せて堂々の投げ！'],
-    '突っ張りからの押し倒し': ['clinch', '突っ張りを返し、相手を一歩ずつ後ろへ下げた', '相手は踏ん張り直すが、上体が起きる', 'そこへ続けて突っ張りを浴びせ、押し倒した', '止まらない突っ張り！'],
-    '打撃からの組み倒し': ['strike', '打撃で守りを上げさせ、腕を回して組み付いた', '相手が腕をほどこうとすると、体が横を向く', 'その向きに合わせて重心を崩し、組み倒した', '打撃が開いた組み倒し！'],
-    '寄りからの押し倒し': ['clinch', '腕を差し入れて四つに組み、足を進めて寄った', '相手は腰を引いて耐えるが、かかとが浮く', '踏ん張りが切れたところへ寄り切り、押し倒した', '四つに組んで押し切れ！'],
-    'フックによるKO': ['punch', 'ジャブで間合いを取り戻し、ストレートを伸ばした', '相手は顔の前で腕をそろえ、正面を守る', 'その腕の横から鋭いフックを決め、KOを奪った', '間合いを制するフック！'],
-    '大外刈りからの押さえ込み': ['clinch', '腕をつかんで懐へ引き寄せ、足を前へ置いた', '相手が投げをこらえると、後ろ足に体重が乗る', 'その足を大外刈りで払い、倒して押さえ込んだ', '一瞬の隙を突く大外刈り！'],
-    '寝技からの関節技': ['ground', '腕を引き寄せ、寝技で相手の体を抱え込んだ', '相手は上体を起こそうと、片腕を伸ばす', 'その腕を逃さず関節技に取り、降参を引き出した', '伸びた腕を逃さない関節技！'],
-    'スイープからの絞め技': ['ground', '足をからめて引き込み、下から腰を浮かせた', '相手は上に残ろうと手をつくが、体が傾く', 'スイープで上下を返し、絞め技で降参を引き出した', '下から返す鮮やかなスイープ！'],
-    'パンチからの押し倒し': ['strike', '必死にパンチを返し、ひるんだ相手につかみかかった', '相手は腕を外そうとするが、足元がもつれる', 'その隙に体を寄せ、押し倒した', '必死のパンチが道を開く！'],
-    'とっさの反撃': ['evade', '逃げるように下がりながら、震える拳を構え直した', '相手は届くと思い、一気に腕を伸ばしてくる', 'とっさに出したパンチを合わせ、相手の足を止めた', 'とっさの一撃が届いた！'],
-    'とっさの一撃': ['evade', '腕で顔を守り、足を踏ん張って拳を握り直した', '相手は守りを崩そうと、大きく腕を伸ばす', '空いた脇へとっさの一撃を入れ、相手の足を止めた', '守り抜いて、とっさの一撃！'],
-    '膝蹴りによるKO': ['knee', '踏ん張って間合いを詰め、相手の上体を引き寄せた', '相手は押し返そうと、さらに前へ体を乗り出す', '低くなった上体へ膝蹴りを突き上げ、KOを奪った', '踏み込んだ膝蹴り一閃！'],
-    '足掛けからの押さえ込み': ['clinch', '腕をくぐらせて胴を抱え、左右に体を揺さぶった', '相手が踏ん張り直すと、片足に体重が集まる', 'その足に足掛けを合わせ、倒して押さえ込んだ', '足掛けで一気に決着！'],
-    'タックルからの制圧': ['shot', '姿勢を低くして、肩から胴へ飛び込んだ', '相手は腕で肩を押すが、後ろへ足が流れる', '足を止めずタックルで倒し、上から動きを封じた', '止まらないタックル！'],
-    'とっさの反撃からの押し倒し': ['rush', '押し込まれる体を必死に押し返し、両手を突き出した', '相手はつかもうと両腕を伸ばし、身を乗り出す', 'とっさの押し返しがうまく合い、そのまま押し倒した', '必死の押し返しで決着！'],
-    '力による押し倒し': ['clinch', '両腕で胴を抱え、足を開いて腰を落とした', '相手が腕をほどこうとしても、体が離れない', '逃げようと浮いた体を力強く押し倒した', '逃がさない、力の押し倒し！'],
-    'タックルからの関節技': ['shot', '低く飛び込んでタックルを決め、上から体を押さえた', '相手は起き上がろうと、片腕を床につく', 'ついた腕をすかさず関節技に取り、降参を引き出した', 'タックルから腕を取れ！'],
-    '打撃によるKO': ['strike', '打撃を素早く返し、相手の守りを左右に動かした', '相手は受け止めようと腕を上げるが、動きが遅れる', '戻りきらない守りの隙へ打撃を続け、KOを奪った', '守りの隙へ連続打撃！']
+    "組み付きからの押し倒し": {
+      "range": "clinch",
+      "counter": "{w}は両腕で{l}の胴を抱え、足を広げた。",
+      "resistance": "{l}は押し返すが、上体が後ろへ反る。",
+      "finish": "{w}は体を寄せ、傾いた{l}を全身で押し倒した！",
+      "headline": "突進からの押し倒し！"
+    },
+    "打撃からの押し倒し": {
+      "range": "strike",
+      "counter": "{w}の打撃が{l}の上体を揺らした！",
+      "resistance": "{l}は顔を守ろうと腕を上げ、足元の構えが緩む。",
+      "finish": "{w}は空いた胴へ組み付き、{l}を地面へ押し倒した！",
+      "headline": "打撃の隙から押し倒せ！"
+    },
+    "投げからの押さえ込み": {
+      "range": "clinch",
+      "counter": "{w}は短い打撃から、{l}の胴へ組み付いた。",
+      "resistance": "{l}は押し返そうと足を踏ん張り、体を前へ傾ける。",
+      "finish": "{w}はその勢いで{l}を投げ、上から押さえ込んだ！",
+      "headline": "組み付いて一気に投げる！"
+    },
+    "打撃からの制圧": {
+      "range": "strike",
+      "counter": "{w}のパンチが{l}に当たり、体勢を崩した！",
+      "resistance": "{l}は顔をかばい、後ずさりしながら腕を伸ばす。",
+      "finish": "{w}はその隙に{l}へ組み付き、地面へ押し倒して動きを封じた！",
+      "headline": "パンチから一気に制圧！"
+    },
+    "崩しからの投げ": {
+      "range": "clinch",
+      "counter": "{w}は体をさばき、{l}の腕を斜めに引いた。",
+      "resistance": "{l}は倒れまいと踏ん張り直し、片足を浮かせる。",
+      "finish": "{w}は浮いた足が戻る前に{l}を投げ、押さえ込んだ！",
+      "headline": "体さばきから鮮やかな投げ！"
+    },
+    "組み倒し": {
+      "range": "clinch",
+      "counter": "{w}は肩を寄せ、{l}の上体を横へ押した。",
+      "resistance": "{l}は押し返すが、踏ん張る足がそろってしまう。",
+      "finish": "{w}はその一瞬に体をひねり、{l}を組み倒した！",
+      "headline": "肩を寄せて豪快な組み倒し！"
+    },
+    "素早い反撃": {
+      "range": "evade",
+      "counter": "{w}は細かく足を動かし、{l}の正面を外した。",
+      "resistance": "{l}は向き直りながら拳を伸ばし、追いすがる。",
+      "finish": "{w}は伸びた腕の外へ回り、{l}に素早い反撃を決めた！",
+      "headline": "足運びから鋭い反撃！"
+    },
+    "体当たりからの押し倒し": {
+      "range": "rush",
+      "counter": "{w}は足を広げて踏みとどまり、肩を低く構えた。",
+      "resistance": "{l}は押し切ろうと体重を前へかけ、踏み出す。",
+      "finish": "{w}はそこへ体当たりを合わせ、{l}を押し倒した！",
+      "headline": "踏ん張りから体当たり！"
+    },
+    "強打からの組み倒し": {
+      "range": "strike",
+      "counter": "{w}の強打が{l}に当たり、体をぐらつかせた！",
+      "resistance": "{l}は顔を守りながら腰を引き、踏ん張ろうとする。",
+      "finish": "{w}は{l}の胴を抱え、足が戻る前に組み倒した！",
+      "headline": "強打から豪快な組み倒し！"
+    },
+    "四つ組みからの投げ": {
+      "range": "clinch",
+      "counter": "{w}は腕を差し入れて四つに組み、{l}へ腰を寄せた。",
+      "resistance": "{l}は押し返そうとするが、片足に体重が乗る。",
+      "finish": "{w}は重さが移った瞬間に腰を回し、{l}を投げた！",
+      "headline": "腰を寄せて堂々の投げ！"
+    },
+    "突っ張りからの押し倒し": {
+      "range": "clinch",
+      "counter": "{w}は突っ張りを返し、{l}を一歩ずつ後ろへ下げた。",
+      "resistance": "{l}は足を踏ん張り直すが、上体が起きてしまう。",
+      "finish": "{w}はそこへ続けて突っ張り、{l}を押し倒した！",
+      "headline": "止まらない突っ張り！"
+    },
+    "打撃からの組み倒し": {
+      "range": "strike",
+      "counter": "{w}の打撃が{l}をひるませ、守りを上げさせた！",
+      "resistance": "{l}は両腕で顔を守り、近づかれるのをこらえる。",
+      "finish": "{w}は{l}の胴へ組み付き、体勢を崩して組み倒した！",
+      "headline": "打撃が開いた組み倒し！"
+    },
+    "寄りからの押し倒し": {
+      "range": "clinch",
+      "counter": "{w}は四つに組み、足を進めて{l}を押した。",
+      "resistance": "{l}は腰を引いて耐えるが、かかとが浮き始める。",
+      "finish": "{w}は踏ん張りが切れた{l}へ寄り、押し倒した！",
+      "headline": "四つに組んで押し切れ！"
+    },
+    "フックによるKO": {
+      "range": "punch",
+      "counter": "{w}はジャブで距離を保ち、ストレートを伸ばした。",
+      "resistance": "{l}は腕を顔の前にそろえ、正面のパンチを防ぐ。",
+      "finish": "{w}のフックが守りの横から{l}をとらえ、KOを奪った！",
+      "headline": "間合いを制するフック！"
+    },
+    "大外刈りからの押さえ込み": {
+      "range": "clinch",
+      "counter": "{w}は{l}の腕をつかみ、ぐっと引き寄せた。",
+      "resistance": "{l}は投げをこらえようと踏ん張り、後ろ足へ体重を乗せる。",
+      "finish": "{w}はその足を大外刈りで払い、倒れた{l}を押さえ込んだ！",
+      "headline": "一瞬の隙を突く大外刈り！"
+    },
+    "寝技からの関節技": {
+      "range": "ground",
+      "counter": "{w}は足をからめて{l}を引き込み、寝技に持ち込んだ。",
+      "resistance": "{l}は上体を起こそうと、片腕を床につく。",
+      "finish": "{w}は伸びた腕を関節技に取り、{l}の降参を引き出した！",
+      "headline": "伸びた腕を逃さない関節技！"
+    },
+    "スイープからの絞め技": {
+      "range": "ground",
+      "counter": "{w}は足をからめて{l}を引き込み、下から腰を浮かせた。",
+      "resistance": "{l}は上に残ろうと手をつくが、体が横へ傾く。",
+      "finish": "{w}はスイープで上下を返し、絞め技で{l}を降参させた！",
+      "headline": "下から返す鮮やかなスイープ！"
+    },
+    "パンチからの押し倒し": {
+      "range": "strike",
+      "counter": "{w}が必死に振ったパンチが、{l}をひるませた！",
+      "resistance": "{l}は顔を守ろうとして、足元がもつれる。",
+      "finish": "{w}は{l}につかみかかり、そのまま地面へ押し倒した！",
+      "headline": "必死のパンチが道を開く！"
+    },
+    "とっさの反撃": {
+      "range": "evade",
+      "counter": "{w}は逃げるように下がり、震える拳を構え直した。",
+      "resistance": "{l}はあと一歩で届くと思い、両腕を伸ばして迫る。",
+      "finish": "{w}のとっさのパンチが飛び込んできた{l}に重なり、足を止めた！",
+      "headline": "とっさの一撃が届いた！"
+    },
+    "とっさの一撃": {
+      "range": "evade",
+      "counter": "{w}は顔を守り、足を踏ん張って拳を握り直した。",
+      "resistance": "{l}は守りを崩そうと、大きく腕を伸ばす。",
+      "finish": "{w}のとっさの一撃が空いた脇に入り、{l}の足を止めた！",
+      "headline": "守り抜いて、とっさの一撃！"
+    },
+    "膝蹴りによるKO": {
+      "range": "knee",
+      "counter": "{w}は足を踏ん張り、{l}の上体を引き寄せた。",
+      "resistance": "{l}は押し返そうと、肩を下げて身を乗り出す。",
+      "finish": "{w}の膝蹴りが低くなった{l}の上体に命中し、KOを奪った！",
+      "headline": "膝蹴り一閃！"
+    },
+    "足掛けからの押さえ込み": {
+      "range": "clinch",
+      "counter": "{w}は{l}の胴を抱え、左右に揺さぶった。",
+      "resistance": "{l}は倒れまいと踏ん張り直し、片足に体重を乗せる。",
+      "finish": "{w}はその足に足掛けを合わせ、倒れた{l}を押さえ込んだ！",
+      "headline": "足掛けで一気に決着！"
+    },
+    "タックルからの制圧": {
+      "range": "shot",
+      "counter": "{w}は姿勢を低くし、{l}の胴へ肩から飛び込んだ。",
+      "resistance": "{l}は肩を押して耐えるが、後ろへ足が流れる。",
+      "finish": "{w}は足を止めずタックルで{l}を倒し、上から動きを封じた！",
+      "headline": "止まらないタックル！"
+    },
+    "とっさの反撃からの押し倒し": {
+      "range": "rush",
+      "counter": "{w}は必死に踏みとどまり、両手を前へ突き出した。",
+      "resistance": "{l}はつかもうと両腕を伸ばし、前へ身を乗り出す。",
+      "finish": "{w}の押し返しがその踏み込みと重なり、{l}を押し倒した！",
+      "headline": "必死の押し返しで決着！"
+    },
+    "力による押し倒し": {
+      "range": "clinch",
+      "counter": "{w}は{l}の胴を抱え、足を開いて腰を落とした。",
+      "resistance": "{l}は腕をほどこうとするが、体を離せない。",
+      "finish": "{w}は逃げようと浮いた{l}の体を、力強く押し倒した！",
+      "headline": "逃がさない、力の押し倒し！"
+    },
+    "タックルからの関節技": {
+      "range": "shot",
+      "counter": "{w}はタックルで{l}を倒し、上から体を押さえた。",
+      "resistance": "{l}は起き上がろうと、片腕を床につく。",
+      "finish": "{w}はついた腕を関節技に取り、{l}の降参を引き出した！",
+      "headline": "タックルから腕を取れ！"
+    },
+    "打撃によるKO": {
+      "range": "strike",
+      "counter": "{w}は素早い打撃で{l}の守りを左右に動かした。",
+      "resistance": "{l}は腕を上げて受け止めるが、戻す動きが遅れる。",
+      "finish": "{w}は戻りきらない守りの隙へ打撃を決め、{l}からKOを奪った！",
+      "headline": "守りの隙へ連続打撃！"
+    }
   };
 
   // 入ってくる攻撃と、勝者が必要とする距離を組み合わせた受け方。
   function receive(incoming, target, variant) {
-    if (incoming === 'shot') return ['腰を引き、両腕で肩を押さえてこらえた', '足を広げ、飛び込んでくる体を受け止めた', '腰を落とし、肩を押して倒されるのをこらえた'][variant];
-    if (incoming === 'ground') return target === 'ground' ? '腰を落とし、腕を取られたまま体勢を保った' : '腰を引いて腕を突っ張り、引き込まれるのをこらえた';
-    if (incoming === 'clinch' || incoming === 'rush') return ['足を開いて踏ん張り、押し込まれるのをこらえた', '腰を落とし、腕を突っ張って体を支えた', '足を引いて体を支え、倒れるのをこらえた'][variant];
+    if (incoming === 'shot') return ['腰を引き、両腕で肩を押さえてこらえた', '足を広げ、飛び込んでくる体を受け止めた', '両手で肩を押し、倒されるのをこらえた'][variant];
+    if (incoming === 'ground') return target === 'ground' ? '腕を取られたまま、足を開いて体勢を保った' : '腰を引いて腕を突っ張り、引き込まれるのをこらえた';
+    if (incoming === 'clinch' || incoming === 'rush') return ['足を開いて踏ん張り、押し込まれるのをこらえた', '両腕で押し返し、足が滑るのをこらえた', '足を引いて体を支え、倒れるのをこらえた'][variant];
     if (incoming === 'kick') return '腕とすねで蹴りを受け、足を踏み替えて耐えた';
     if (target === 'clinch' || target === 'shot' || target === 'ground') return '腕で顔を守り、一歩ずつ近づく機会をうかがった';
     return ['腕で打撃を受け、半歩下がって構え直した', '上体を引き、伸びてくる拳をぎりぎりで外した', '顔を守って一歩下がり、相手の腕を見据えた'][variant];
   }
 
-  // 接触中→離れる、遠い→踏み込む、寝技へ入る、の接続を明示する。
-  function connect(incoming, target, winnerId) {
+  // 距離を変える動作は独立した短文にし、反撃の文へ動作を詰め込まない。
+  function connect(incoming, target, winnerId, w, l, variant) {
     const contact = ['clinch', 'rush', 'shot', 'ground'].includes(incoming);
     if (target === 'ground') {
-      if (winnerId === 'bjj-fighter') return incoming === 'kick'
-        ? '蹴りを受けて近づき、腕を取り座り込み、' : '相手の腕をつかんだまま座り込み、';
-      if (incoming === 'kick') return '蹴った足が戻る瞬間に踏み込み、';
-      return contact ? '押し返す腕を引きながら体を寄せ、' : '伸びた腕の内側へ入り、';
+      if (winnerId === 'bjj-fighter') return `${w}は${l}の腕を取り、腰を落として座り込んだ。`;
+      return incoming === 'kick' ? `${w}は蹴り足が戻る瞬間に踏み込んだ。` : `${w}は${l}へ体を寄せ、腰を低く構えた。`;
     }
-    if (target === 'punch' || target === 'evade' || target === 'strike') return contact ? '肩を押して体を離すと、' : '攻撃が戻る瞬間を狙い、';
-    if (target === 'knee') return contact ? '押し合う腕の内側に手を入れ、' : '蹴りの間合いから一歩踏み込み、';
+    if (['punch', 'evade', 'strike'].includes(target)) {
+      if (contact) return `${w}は${l}の肩を押し、体を離した。`;
+      return [`${w}は${l}の腕が戻る瞬間に前へ出た。`, `${w}は${l}の踏み込みに合わせて動いた。`, `${w}は一歩踏み直し、${l}に向き直った。`][variant];
+    }
+    if (target === 'knee') return `${w}は${l}の腕を内側から押し上げた。`;
     if (target === 'clinch' || target === 'shot') {
-      if (incoming === 'kick') return '蹴った足が戻る前に懐へ入り、';
-      return contact ? '押し合う力が緩んだ瞬間、' : '伸びてきた腕の内側へ入り、';
+      if (incoming === 'kick') return `${w}は蹴った足が戻る前に懐へ入った。`;
+      return contact ? `${w}は${l}の押す力が緩むと、両腕を内側へ回した。` : `${w}は${l}の腕の内側へ踏み込んだ。`;
     }
-    return '相手の足が前へ出るのを待ち、';
+    return `${w}は${l}の腕を見つめ、体を固くした。`;
   }
 
   function generateStory(result) {
@@ -115,23 +312,24 @@
     let point = (seed % 1009) / 1009 * choices.reduce((sum, move) => sum + stats[winner][move.stat], 0);
     const finish = choices.find(move => (point -= stats[winner][move.stat]) < 0) || choices.at(-1);
     const plan = FINISHES[finish.label], attack = ATTACKS[loseCard.id];
-    const w = `「${winCard.name}」`, l = `「${loseCard.name}」`;
-    const setup = finish.label === '寝技からの関節技' && winCard.id === 'mma-fighter'
-      ? 'タックルで倒して上に回り、相手の片腕を押さえた' : plan[1];
-    const opening = `${l}が${attack[1]}！${w}は${receive(attack[0], plan[0], variant)}。`;
-    const pursuit = [ `${attack[2]}相手に、`, `なおも${attack[2]}相手を前に、`, `${attack[2]}相手の動きに合わせ、` ][variant];
-    const middle = `${pursuit}${w}は${connect(attack[0], plan[0], winCard.id)}${setup}。${plan[2]}。`;
+    const w = ALIASES[winCard.id], l = ALIASES[loseCard.id];
+    const render = text => text.replaceAll('{w}', w).replaceAll('{l}', l);
+    const counter = finish.label === '寝技からの関節技' && winCard.id === 'mma-fighter'
+      ? `${w}はタックルで${l}を倒し、上から体を押さえた。` : render(plan.counter);
+    const opening = `「${loseCard.name}」と「${winCard.name}」が激突。${l}が${attack[1].replaceAll('相手', w)}！${w}は${receive(attack[0], plan.range, variant).replaceAll('相手', l)}。`;
+    const counterSentence = counter.startsWith(`${w}は`) ? counter.slice(w.length + 1) : counter;
+    const middle = connect(attack[0], plan.range, winCard.id, w, l, variant) + counterSentence + render(plan.resistance);
     const endings = upset ? (close
       ? ['接戦から番狂わせの勝利だ！', '接戦を制し、不利な予想を覆した勝利！', '接戦の末、番狂わせの勝利！']
       : ['番狂わせの勝利だ！', '不利な予想を覆して勝利！', 'まさかの番狂わせで勝利！'])
       : close ? ['わずかな隙をつき、接戦に勝利！', '競り合った接戦を制し、勝利！', 'ゆずらない接戦を制して勝利！']
       : kind === 'dominant' ? ['相手に立て直す間を与えず勝利！', '押し返す間を与えず勝利！', '最後は相手を動かさない、堂々の勝利だ！']
       : ['踏み込む一歩で勝利をつかんだ！', '抵抗を振り切り、勝利をつかんだ！', '一瞬の反撃で勝利をつかんだ！'];
-    const ending = `${w}は${plan[3]}。${endings[variant]}`;
-    return Object.freeze({ headline: upset ? `${finish.label}で逆転！` : plan[4], opening, middle, ending, kind, close,
+    const ending = render(plan.finish) + endings[variant].replaceAll('相手', l);
+    return Object.freeze({ headline: upset ? `${finish.label}で逆転！` : plan.headline, opening, middle, ending, kind, close,
       finish: finish.label, playerSkill: winner === 'player' ? finish.stat : profiles[playerCard.id].techniques[0].stat,
       cpuSkill: winner === 'cpu' ? finish.stat : profiles[cpuCard.id].techniques[0].stat,
-      winnerId: winCard.id, loserId: loseCard.id,
+      winnerId: winCard.id, loserId: loseCard.id, winnerAlias: w, loserAlias: l,
       body: `${opening}\n\n${middle}\n\n${ending}` });
   }
   window.HumanityStory = { generateStory };
