@@ -164,7 +164,7 @@
     #hand-screen > .actions { margin-top: 16px; }
     .battle-area .actions { margin-top: 0; }
     .battle-area .actions button:not([hidden]) { margin-top: 12px; }
-    .battle-arena {
+    .battle-arena { position: relative; isolation: isolate;
       display: grid;
       grid-template-columns: minmax(0, 1fr);
       justify-items: center;
@@ -177,6 +177,17 @@
     .battle-side--player { --attack-direction: -1; }
     .battle-side--cpu { --attack-direction: 1; }
     .battle-arena > .vs { align-self: center; margin: 0; font-size: clamp(1rem, 4vw, 2rem); }
+    .battle-arena > .vs { position:relative; }
+    #hand-screen[data-phase="win"] #vs-text, #hand-screen[data-phase="result"] #vs-text { visibility:hidden; }
+    #skip-button { position:fixed; bottom:12px; right:12px; z-index:30; width:auto; max-width:calc(100% - 24px); background:#211e30; font-size:0.9rem; padding:10px 16px; }
+    html { scrollbar-gutter: stable; }
+    #impact-flash { position:absolute; inset:0; z-index:8; pointer-events:none; opacity:0; border-radius:12px; background:radial-gradient(ellipse,#fff3ce,#ffad4188,transparent); }
+    #burn-effects { position:absolute; inset:0; pointer-events:none; z-index:6; }
+    .burn-edge { position:absolute; height:12px; background:linear-gradient(0deg,transparent,#f43b12,#ffbc32,#fff1a0,transparent); box-shadow:0 0 12px #ff6a20; }
+    .ember { position:absolute; top:0; width:3px; height:5px; background:#ffcb69; box-shadow:0 0 5px #ff4b21; border-radius:50%; }
+    .winner-card { border-color:#ffe193; box-shadow:0 0 18px #ffc45e99; }
+    #cpu-fighter.winner-card > .card { border-color:#ffe193; }
+    #win-banner { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:9; color:#ffe2a2; text-shadow:0 0 10px #d56a1c; font-size:clamp(1rem,4.5vw,1.5rem); line-height:1; font-weight:900; white-space:nowrap; pointer-events:none; }
     .motion-choice, .moving-card { border-color: #ffbf60; box-shadow: 0 0 12px #ffbf6055; }
     .fighter-slot { transform-origin: top left; position: relative; z-index: 2; }
     .hand .card[aria-pressed="true"] { box-shadow: 0 0 0 2px #ffbf6066; }
@@ -208,7 +219,7 @@
       #hand-title, .battle-area h2 { font-size: 1rem; margin-bottom: 4px; }
       .hand, .cpu-hand { margin: 6px 0; }
       .battle-area { margin: 8px 0; }
-      .battle-arena { gap: 4px; }
+      .battle-arena { position: relative; isolation: isolate; gap: 4px; }
       .battle-side h3 { font-size: 0.75rem; margin-bottom: 3px; }
       .battle-arena > .vs { font-size: 1rem; line-height: 1.2; }
       .battle-arena .fighter-card { min-height: 80px; padding: 8px 12px; gap: 4px; }
@@ -246,14 +257,16 @@
       <ul id="cpu-hand" class="cpu-hand" aria-label="CPUの手札3枚"></ul>
       <section id="battle-area" class="battle-area" aria-labelledby="battle-title">
         <h2 id="battle-title" tabindex="-1">バトルエリア</h2>
-        <div class="battle-arena" data-attack-axis="y">
+        <div id="battle-arena" class="battle-arena" data-attack-axis="y">
           <section class="battle-side battle-side--cpu" data-attack-direction="down" aria-labelledby="cpu-label">
             <h3 id="cpu-label">CPU</h3>
             <div id="cpu-fighter" class="fighter-slot">
               <div class="card-back" role="img" aria-label="CPUが選んだ裏向きカード"><span aria-hidden="true">?</span><span>CPU</span></div>
             </div>
           </section>
-          <div class="vs" aria-label="対戦">VS</div>
+          <div id="impact-flash" aria-hidden="true"></div>
+          <div id="burn-effects" aria-hidden="true"></div>
+          <div class="vs" aria-label="対戦"><span id="vs-text">VS</span><span id="win-banner" role="status" hidden></span></div>
           <section class="battle-side battle-side--player" data-attack-direction="up" aria-labelledby="player-label">
             <h3 id="player-label">あなた</h3>
             <div id="player-fighter" class="card fighter-card fighter-slot"><span class="empty-fighter">手札からカードを選んでください</span></div>
@@ -280,18 +293,17 @@
       <h3>あなたの手札</h3>
       <ul id="hand" class="hand" aria-label="あなたの手札3枚"></ul>
       <div class="actions">
-        <button id="confirm-button" type="button" hidden disabled>このカードで決定</button>
-        <button id="fight-button" type="button" disabled>このキャラで戦う</button>
+        <button id="skip-button" class="secondary" type="button" hidden>演出をスキップ</button>
         <button id="redeal-button" class="secondary" type="button">新しい試合</button>
       </div>
       <p id="status" class="status" role="status"></p>
     </section>
   </main>
-  <script src="./js/characters.js?v=compact-mobile-1" defer></script>
-  <script src="./js/battle.js?v=compact-mobile-1" defer></script>
-  <script src="./js/combat-styles.js?v=compact-mobile-1" defer></script>
-  <script src="./js/story.js?v=compact-mobile-1" defer></script>
-  <script src="./js/match.js?v=compact-mobile-1" defer></script>
-  <script src="./js/game.js?v=compact-mobile-1" defer></script>
+  <script src="./js/characters.js?v=one-tap-battle-1" defer></script>
+  <script src="./js/battle.js?v=one-tap-battle-1" defer></script>
+  <script src="./js/combat-styles.js?v=one-tap-battle-1" defer></script>
+  <script src="./js/story.js?v=one-tap-battle-1" defer></script>
+  <script src="./js/match.js?v=one-tap-battle-1" defer></script>
+  <script src="./js/game.js?v=one-tap-battle-1" defer></script>
 </body>
 </html>
