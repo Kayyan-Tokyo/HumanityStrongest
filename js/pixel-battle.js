@@ -5,8 +5,8 @@
   // 演出専用の固定配役。正式キャラクターのIDや能力とは対応させない。
   // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
   const SPRITES = {
-    player: { src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, referenceHeight:144, anchors:[[80.5,142],[87,142],[81.5,145],[85.5,144]], frames:[[31,34,153,142],[202,35,160,142],[414,14,150,145],[593,16,160,144]] } } },
-    cpu: { src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{ walk:{ src:'./assets/characters/sumo_walk_4f.png', fps:6, anchor:[160,316], referenceHeight:300, frames:[[0,0,320,336],[320,0,320,336],[640,0,320,336],[960,0,320,336]] }, attack:{ src:'./assets/characters/sumo_slap_4f.png', once:true, duration:500, anchor:[256,476], referenceHeight:458, frames:[[0,0,704,496],[704,0,704,496],[1408,0,704,496],[2112,0,704,496]] } } }
+    player: { sourceFacing:1, src:'./assets/characters/spartan_idle.png', height:56, frame:[22,45,147,139], poses:{ attack:{ src:'./assets/characters/spartan_thrust_4f.png', once:true, duration:500, hitOffset:[94,48], anchor:[240,460], referenceHeight:453, frames:[[0,0,832,480],[832,0,832,480],[1664,0,832,480],[2496,0,832,480]] }, walk:{ src:'./assets/characters/spartan_walk_4f.png', fps:7, referenceHeight:144, anchors:[[80.5,142],[87,142],[81.5,145],[85.5,144]], frames:[[31,34,153,142],[202,35,160,142],[414,14,150,145],[593,16,160,144]] } } },
+    cpu: { sourceFacing:1, src:'./assets/characters/sumo_idle.png', height:52, frame:[25,75,142,109], poses:{ walk:{ src:'./assets/characters/sumo_walk_4f.png', fps:6, anchor:[160,316], referenceHeight:300, frames:[[0,0,320,336],[320,0,320,336],[640,0,320,336],[960,0,320,336]] }, attack:{ src:'./assets/characters/sumo_slap_4f.png', once:true, duration:500, hitOffset:[61,47], anchor:[256,476], referenceHeight:458, frames:[[0,0,704,496],[704,0,704,496],[1408,0,704,496],[2112,0,704,496]] } } }
   };
   // 表示専用。元の移動軌道・演出時間は変えず、拡大した画像の余白を確保する。
   const LAYOUT = { spriteScale:1.35, separation:18, edgePadding:8 };
@@ -17,6 +17,11 @@
     const attackOffset = side === 'cpu' && actor.pose === 'attack' ? 8 * Math.sin(actor.attackTime / 500 * Math.PI) : 0;
     return { ...actor, x:Math.max(margin, Math.min(WIDTH - margin, actor.x + (side === 'player' ? -LAYOUT.separation : LAYOUT.separation) - attackOffset)) };
   }
+  // 向きは移動速度や陣営から独立。完全な同座標では直前の向きを保つ。
+  function resolveFacing(character, opponent, previous = 1) {
+    return opponent.x > character.x ? 1 : opponent.x < character.x ? -1 : previous === -1 ? -1 : 1;
+  }
+  const facingStates = new WeakMap();
   const images = {};
   const sources = Object.entries(SPRITES).flatMap(([side, config]) => [
     [side, config.src], ...Object.entries(config.poses).map(([pose, clip]) => [side + ':' + pose, clip.src])
@@ -36,7 +41,7 @@
     const index = animated ? clip.once ? Math.min(clip.frames.length - 1, Math.floor(actor.attackTime / (clip.duration / clip.frames.length))) : Math.floor(time * clip.fps / 1000) % clip.frames.length : 0;
     return { image:animated ? images[side + ':' + actor.pose] : images[side],
       frame:animated ? clip.frames[index] : config.frame, index, animated, clip:animated ? clip : null,
-      flip:animated ? clip.once ? actor.facing === Math.PI : actor.direction < 0 : side === 'cpu' };
+      flip:(actor.facingDirection ?? (actor.facing === Math.PI ? -1 : 1)) !== (animated && clip.sourceFacing || config.sourceFacing || 1) };
   }
   const GROUND_Y = 212;
   const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
@@ -84,7 +89,7 @@
       phase = t < 9000 ? 'fall' : 'victory';
     }
     for (const side of ['cpu', 'player']) {
-      actors[side].facing = side === 'player' ? 0 : Math.PI;
+      actors[side].facing = resolveFacing(actors[side], actors[side === 'player' ? 'cpu' : 'player']) === 1 ? 0 : Math.PI;
       actors[side].frame = Math.floor(t / 120) % 2;
       actors[side].fall = actors[side].pose === 'defeated' ? 1 : clamp((t - 8000) / 1000, 0, 1);
     }
@@ -101,7 +106,7 @@
     ctx.beginPath(); ctx.ellipse(actor.x, actor.y + 1, fallen ? 18 : 12, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.save();
     ctx.translate(Math.round(actor.x), Math.round(actor.y));
-    if (fallen) { ctx.rotate((side === 'player' ? -1 : 1) * actor.fall * Math.PI / 2); ctx.scale(1, 1 - actor.fall * .25); }
+    if (fallen) { ctx.rotate(-actor.facingDirection * actor.fall * Math.PI / 2); ctx.scale(1, 1 - actor.fall * .25); }
     ctx.scale(1.5, 1.5);
     ctx.translate(-8, -24 + bob);
     const suit = side === 'player' ? '#439dff' : '#f36162';
@@ -149,15 +154,15 @@
     ctx.fillStyle = '#00000066';
     ctx.beginPath(); ctx.ellipse(actor.x, actor.y + 1, config.height * LAYOUT.spriteScale * config.frame[2] / config.frame[3] * .30, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.save(); ctx.translate(Math.round(actor.x), Math.round(actor.y) - (fallen ? width / 2 * Math.sin(actor.fall * .18) : 0));
-    if (fallen) { ctx.rotate((side === 'player' ? -1 : 1) * actor.fall * .18); ctx.scale(1, 1 - actor.fall * .60); }
+    if (fallen) { ctx.rotate(-actor.facingDirection * actor.fall * .18); ctx.scale(1, 1 - actor.fall * .60); }
     if (actor.pose === 'walk' && !selected.animated && !config.poses.walk) ctx.scale(1, actor.frame ? .98 : 1);
-    if (actor.pose === 'attack' && !selected.clip?.once) { ctx.rotate(side === 'player' ? .07 : -.07); ctx.scale(1.04, .98); }
-    if (actor.pose === 'damage') ctx.rotate(side === 'player' ? -.08 : .08);
+    if (actor.pose === 'attack' && !selected.clip?.once) { ctx.rotate(actor.facingDirection * .07); ctx.scale(1.04, .98); }
+    if (actor.pose === 'damage') ctx.rotate(-actor.facingDirection * .08);
     if (selected.flip) ctx.scale(-1, 1);
     ctx.drawImage(selected.image, ...frame, dx, dy, width, height);
     if ((actor.pose === 'attack' && !selected.clip?.once) || actor.pose === 'damage') {
       ctx.fillStyle = actor.pose === 'attack' ? '#ffe2a2' : '#ffb476';
-      ctx.fillRect(side === 'cpu' ? -width / 2 - 3 : width / 2, -height / 2, 3, 3);
+      ctx.fillRect(config.sourceFacing === -1 ? -width / 2 - 3 : width / 2, -height / 2, 3, 3);
     }
     if (actor.pose === 'victory') {
       ctx.fillStyle = '#ffe2a2'; ctx.fillRect(-width / 2 - 4, -height + 5, 3, 3);
@@ -171,8 +176,18 @@
     if (!ctx) return false;
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
     ctx.imageSmoothingEnabled = false;
+    let state = facingStates.get(canvas);
+    if (!state || scene.time < state.time) { state = { time:scene.time, directions:{} }; facingStates.set(canvas,state); }
+    state.time = scene.time;
+    const actors = { player:projectActor(scene.player,'player'), cpu:projectActor(scene.cpu,'cpu') };
+    for (const side of ['cpu', 'player']) {
+      const actor = actors[side], opponent = actors[side === 'player' ? 'cpu' : 'player'];
+      actor.facingDirection = resolveFacing(actor,opponent,state.directions[side]);
+      state.directions[side] = actor.facingDirection;
+      actor.facing = actor.facingDirection === 1 ? 0 : Math.PI;
+    }
     for (const side of ['cpu', 'player'].sort((a, b) => scene[a].y - scene[b].y)) {
-      const actor = projectActor(scene[side], side);
+      const actor = actors[side];
       const a = projectActor(sampleScene(Math.max(0, scene.time - 5), scene.winner)[side], side);
       const b = projectActor(sampleScene(Math.min(DURATION, scene.time + 5), scene.winner)[side], side);
       // 力士の構えへの戻りも、移動している間は歩行画像を使う。軌道は変更しない。
@@ -184,12 +199,14 @@
       canvas.dataset[side + 'Walking'] = String(selected.animated && actor.pose === 'walk');
       canvas.dataset[side + 'Attacking'] = String(selected.animated && actor.pose === 'attack');
       canvas.dataset[side + 'Flipped'] = String(selected.flip);
+      canvas.dataset[side + 'Facing'] = String(actor.facingDirection);
       drawActor(ctx, actor, side, scene.time);
     }
     if (scene.hit > 0) {
-      const thrust = scene.player.pose === 'attack' && images['player:attack'];
-      const slap = scene.cpu.pose === 'attack' && images['cpu:attack'];
-      const x = thrust ? projectActor(scene.player,'player').x + 94 : slap ? projectActor(scene.cpu,'cpu').x - 61 : (scene.player.x + scene.cpu.x) / 2, y = GROUND_Y - (thrust ? 48 : slap ? 47 : 30);
+      const attacker = ['player','cpu'].find(side => actors[side].pose === 'attack');
+      const offset = attacker && SPRITES[attacker].poses.attack?.hitOffset;
+      const x = offset ? actors[attacker].x + actors[attacker].facingDirection * offset[0] : (actors.player.x + actors.cpu.x) / 2;
+      const y = GROUND_Y - (offset ? offset[1] : 30);
       ctx.globalAlpha = scene.hit; ctx.fillStyle = '#ffe8a1';
       ctx.fillRect(x - 6, y - 1, 12, 2); ctx.fillRect(x - 1, y - 6, 2, 12);
       ctx.globalAlpha = 1;
@@ -250,5 +267,5 @@
     return control;
   }
 
-  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, LAYOUT, projectActor, spriteFrame, ready, sampleScene, drawScene, play };
+  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, GROUND_Y, SPRITES, LAYOUT, projectActor, resolveFacing, spriteFrame, ready, sampleScene, drawScene, play };
 })();
