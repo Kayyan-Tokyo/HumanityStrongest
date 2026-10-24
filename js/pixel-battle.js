@@ -2,6 +2,21 @@
   'use strict';
   // 描画専用。能力値・判定API・乱数は参照しない。
   const WIDTH = 320, HEIGHT = 200, DURATION = 10000;
+  // 演出専用の固定配役。正式キャラクターのIDや能力とは対応させない。
+  // frameは透過余白を除いた矩形。将来はposesにスプライトシートのコマを追加する。
+  const SPRITES = {
+    player: { src:'./assets/characters/spartan_idle.png', height:46, frame:[22,45,147,139], poses:{} },
+    cpu: { src:'./assets/characters/sumo_idle.png', height:42, frame:[25,75,142,109], poses:{} }
+  };
+  const images = {};
+  const ready = Promise.all(Object.entries(SPRITES).map(([side, config]) => new Promise(resolve => {
+    if (typeof Image === 'undefined') { resolve(); return; }
+    const image = new Image();
+    const timer = setTimeout(() => resolve(), 5000);
+    image.onload = () => { clearTimeout(timer); images[side] = image; resolve(); };
+    image.onerror = () => { clearTimeout(timer); resolve(); };
+    image.src = config.src;
+  })));
   const marks = [
     [0, .50, .38, .50, .81], [650, .50, .38, .50, .81],
     [2000, .46, .50, .54, .66], [3200, .46, .50, .54, .66],
@@ -57,6 +72,7 @@
 
   // 16×24ピクセルの仮キャラを1.5倍で描く。足元を基準に奥から描画する。
   function drawActor(ctx, actor, side, time) {
+    if (images[side]) { drawSprite(ctx, actor, side); return; }
     const fallen = actor.pose === 'fall' || actor.pose === 'defeated';
     const walk = actor.pose === 'walk' ? actor.frame * 2 - 1 : 0;
     const bob = actor.pose === 'idle' ? Math.floor(time / 400) % 2 : 0;
@@ -96,6 +112,30 @@
     if (actor.pose === 'damage') {
       ctx.fillStyle = '#ffdf80';
       ctx.fillRect(0, 9, 3, 2); ctx.fillRect(13, 8, 3, 2);
+    }
+    ctx.restore();
+  }
+
+  function drawSprite(ctx, actor, side) {
+    const config = SPRITES[side];
+    const frames = config.poses[actor.pose] || [config.frame];
+    const frame = frames[actor.frame % frames.length];
+    const height = config.height, width = height * frame[2] / frame[3];
+    const fallen = actor.pose === 'fall' || actor.pose === 'defeated';
+    // 影と画像が同じ足元座標を使う。歩行中も上下へ浮かせない。
+    ctx.fillStyle = '#00000066';
+    ctx.beginPath(); ctx.ellipse(actor.x, actor.y + 1, width * .30, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.translate(Math.round(actor.x), Math.round(actor.y));
+    if (fallen) { ctx.rotate(actor.fall * Math.PI / 2); ctx.scale(1, 1 - actor.fall * .25); }
+    if (side === 'cpu') ctx.scale(-1, 1);
+    ctx.drawImage(images[side], ...frame, -width / 2, -height, width, height);
+    if (actor.pose === 'attack' || actor.pose === 'damage') {
+      ctx.fillStyle = actor.pose === 'attack' ? '#ffe2a2' : '#ffb476';
+      ctx.fillRect(side === 'cpu' ? -width / 2 - 3 : width / 2, -height / 2, 3, 3);
+    }
+    if (actor.pose === 'victory') {
+      ctx.fillStyle = '#ffe2a2'; ctx.fillRect(-width / 2 - 4, -height + 5, 3, 3);
+      ctx.fillRect(width / 2 + 1, -height + 5, 3, 3);
     }
     ctx.restore();
   }
@@ -162,5 +202,5 @@
     return control;
   }
 
-  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, sampleScene, drawScene, play };
+  window.HumanityPixelBattle = { WIDTH, HEIGHT, DURATION, SPRITES, ready, sampleScene, drawScene, play };
 })();
